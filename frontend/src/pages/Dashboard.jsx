@@ -9,28 +9,29 @@ import {
   getDaysRemaining,
   getCountdownParts,
   getDailyIndex,
-  getPercentage,
 } from '../utils/helpers';
+import { get } from '../utils/api';
 import {
-  EXAM_DATE,
+  EXAM_DATE as MOCK_EXAM_DATE,
   quranVerses,
   hadiths,
-  dashboardStats,
-  studyStats,
-  quranProgress,
-  prayersData,
 } from '../data/mockData';
+// Mock stats kept as reference only — replaced by /api/dashboard
+// import { dashboardStats, studyStats, quranProgress, prayersData } from '../data/mockData';
 
-// Countdown timer component
-function CountdownTimer() {
-  const [parts, setParts] = useState(getCountdownParts(EXAM_DATE));
+// Countdown timer component — accepts examDate as prop so it can use live backend data
+function CountdownTimer({ examDate }) {
+  const [parts, setParts] = useState(getCountdownParts(examDate));
 
   useEffect(() => {
+    // Recalculate immediately when examDate changes (e.g. after backend loads)
+    setParts(getCountdownParts(examDate));
+
     const interval = setInterval(() => {
-      setParts(getCountdownParts(EXAM_DATE));
+      setParts(getCountdownParts(examDate));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [examDate]); // re-run when examDate changes
 
   const units = [
     { label: 'Days', value: parts.days },
@@ -236,20 +237,66 @@ function SwipeableQuoteCard({ verse, hadith }) {
   );
 }
 
+// ─── Skeleton card (shown while dashboard loads) ─────────────
+function SkeletonCard() {
+  return (
+    <div className="rounded-2xl border border-slate-800/60 bg-slate-900/50 p-5 animate-pulse">
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-10 h-10 rounded-xl bg-slate-800" />
+        <div className="w-14 h-14 rounded-full bg-slate-800" />
+      </div>
+      <div className="h-4 bg-slate-800 rounded w-1/2 mb-2" />
+      <div className="h-3 bg-slate-800 rounded w-1/3 mb-4" />
+      <div className="h-8 bg-slate-800 rounded-xl w-full" />
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  const daysRemaining = getDaysRemaining(EXAM_DATE);
-  const dailyVerseIndex = getDailyIndex(quranVerses);
+  const dailyVerseIndex  = getDailyIndex(quranVerses);
   const dailyHadithIndex = getDailyIndex(hadiths);
 
-  // TODO: Connect exam date from backend
-  // TODO: Fetch daily Quran verse from backend — GET /api/quran/verse/daily
-  // TODO: Fetch daily Hadith from backend — GET /api/hadith/daily
+  // ── Dashboard data from /api/dashboard ───────────────────
+  const [examDate,      setExamDate]      = useState(MOCK_EXAM_DATE);
+  const [studyStreak,   setStudyStreak]   = useState(0);
+  const [quranStreak,   setQuranStreak]   = useState(0);
+  const [salahStreak,   setSalahStreak]   = useState(0);
+  const [overallStreak, setOverallStreak] = useState(0);
+  const [studyPercent,  setStudyPercent]  = useState(0);
+  const [quranPercent,  setQuranPercent]  = useState(0);
+  const [salahPercent,  setSalahPercent]  = useState(0);
+  const [loading,       setLoading]       = useState(true);
+  const [settingsLoading, setSettingsLoading] = useState(true);
 
-  const salahCompleted = prayersData.filter(p => p.completed).length;
-  const studyPercent = getPercentage(studyStats.todayHours, studyStats.targetHours);
-  const quranPercent = getPercentage(quranProgress.todayCompleted, quranProgress.todayTarget);
-  const salahPercent = getPercentage(salahCompleted, 5);
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  async function fetchDashboard() {
+    try {
+      setLoading(true);
+      const res = await get('/dashboard');
+      if (res?.data) {
+        const d = res.data;
+        if (d.examDate)      setExamDate(new Date(d.examDate));
+        setStudyStreak(d.studyStreak   ?? 0);
+        setQuranStreak(d.quranStreak   ?? 0);
+        setSalahStreak(d.salahStreak   ?? 0);
+        setOverallStreak(d.overallStreak ?? 0);
+        setStudyPercent(d.todayStudy?.percent ?? 0);
+        setQuranPercent(d.todayQuran?.percent ?? 0);
+        setSalahPercent(d.todaySalah?.percent ?? 0);
+      }
+    } catch (err) {
+      console.warn('Could not fetch dashboard data:', err.message);
+    } finally {
+      setLoading(false);
+      setSettingsLoading(false);
+    }
+  }
+
+  const daysRemaining = getDaysRemaining(examDate);
 
   return (
     <PageLayout>
@@ -288,57 +335,74 @@ export default function Dashboard() {
               </p>
               <p className="text-sm text-slate-400 mt-0.5 flex items-center gap-1.5">
                 <Clock size={12} />
-                <span className="text-emerald-400 font-semibold">{daysRemaining} days</span> remaining
+                {settingsLoading ? (
+                  <span className="text-slate-600 animate-pulse">calculating...</span>
+                ) : (
+                  <>
+                    <span className="text-emerald-400 font-semibold">{daysRemaining} days</span> remaining
+                  </>
+                )}
               </p>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-600">Overall Streak</p>
               <div className="flex items-center gap-1 justify-end mt-0.5">
                 <Flame size={14} className="text-orange-400" />
-                <span className="text-lg font-bold text-orange-400">{dashboardStats.overallStreak}</span>
+                {loading
+                  ? <span className="w-8 h-5 bg-slate-800 rounded animate-pulse inline-block" />
+                  : <span className="text-lg font-bold text-orange-400">{overallStreak}</span>
+                }
                 <span className="text-xs text-slate-500">days</span>
               </div>
             </div>
           </div>
-          <CountdownTimer />
+          <CountdownTimer examDate={examDate} />
         </motion.div>
 
-        {/* Three main cards */}
-        <div className="grid grid-cols-1 gap-4">
-          <MainCard
-            icon={BookOpen}
-            title="Study"
-            percentage={studyPercent}
-            streak={dashboardStats.studyStreak}
-            streakLabel="day streak"
-            actionLabel="Open Study"
-            onClick={() => navigate('/study')}
-            color="blue"
-            delay={0.15}
-          />
-          <MainCard
-            icon={BookMarked}
-            title="Quran"
-            percentage={quranPercent}
-            streak={dashboardStats.quranStreak}
-            streakLabel="day streak"
-            actionLabel="Open Quran"
-            onClick={() => navigate('/quran')}
-            color="emerald"
-            delay={0.2}
-          />
-          <MainCard
-            icon={Moon}
-            title="Salah"
-            percentage={salahPercent}
-            streak={dashboardStats.salahStreak}
-            streakLabel="day streak"
-            actionLabel="Open Salah"
-            onClick={() => navigate('/salah')}
-            color="amber"
-            delay={0.25}
-          />
-        </div>
+        {/* Three main cards — skeleton while loading */}
+        {loading ? (
+          <div className="grid grid-cols-1 gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            <MainCard
+              icon={BookOpen}
+              title="Study"
+              percentage={studyPercent}
+              streak={studyStreak}
+              streakLabel="day streak"
+              actionLabel="Open Study"
+              onClick={() => navigate('/study')}
+              color="blue"
+              delay={0.15}
+            />
+            <MainCard
+              icon={BookMarked}
+              title="Quran"
+              percentage={quranPercent}
+              streak={quranStreak}
+              streakLabel="day streak"
+              actionLabel="Open Quran"
+              onClick={() => navigate('/quran')}
+              color="emerald"
+              delay={0.2}
+            />
+            <MainCard
+              icon={Moon}
+              title="Salah"
+              percentage={salahPercent}
+              streak={salahStreak}
+              streakLabel="day streak"
+              actionLabel="Open Salah"
+              onClick={() => navigate('/salah')}
+              color="amber"
+              delay={0.25}
+            />
+          </div>
+        )}
 
         {/* Swipeable Quote Card — Quran verse + Hadith */}
         <SwipeableQuoteCard
