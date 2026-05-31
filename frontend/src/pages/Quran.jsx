@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckCircle2, Circle, Flame, BookMarked, Star,
-  Plus, Trash2, AlertCircle, ChevronDown, ChevronUp
+  CheckCircle2, Circle, BookMarked, Star,
+  Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, CheckCheck, XCircle
 } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
-import { QuranVerseCard, DailyReminderCard } from '../components/IslamicCard';
+import { QuranVerseCard } from '../components/IslamicCard';
+import LoadingSpinner from '../components/LoadingSpinner';
 import ProgressRing from '../components/ProgressRing';
-import WeeklyBar from '../components/WeeklyBar';
 import { getPercentage, getDailyIndex } from '../utils/helpers';
-import { quranProgress, quranVerses } from '../data/mockData';
+import { get, post, patch, del } from '../utils/api';
+import { quranVerses } from '../data/mockData';
 
 // ─── Collapsible Section ──────────────────────────────────────
 function Section({ title, subtitle, icon: Icon, iconColor = 'text-emerald-400', children, defaultOpen = true, badge }) {
@@ -38,7 +39,10 @@ function Section({ title, subtitle, icon: Icon, iconColor = 'text-emerald-400', 
             {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
         </div>
-        {open ? <ChevronUp size={15} className="text-slate-500 flex-shrink-0" /> : <ChevronDown size={15} className="text-slate-500 flex-shrink-0" />}
+        {open
+          ? <ChevronUp size={15} className="text-slate-500 flex-shrink-0" />
+          : <ChevronDown size={15} className="text-slate-500 flex-shrink-0" />
+        }
       </button>
       <AnimatePresence initial={false}>
         {open && (
@@ -59,18 +63,18 @@ function Section({ title, subtitle, icon: Icon, iconColor = 'text-emerald-400', 
   );
 }
 
-// ─── Consistency Badge ────────────────────────────────────────
-function ConsistencyBadge({ label, value, color = 'emerald' }) {
-  const colorMap = {
-    emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    amber: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    blue: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  };
+// ─── Success toast ────────────────────────────────────────────
+function SuccessToast({ message }) {
   return (
-    <div className={`rounded-xl border px-3 py-3 text-center ${colorMap[color]}`}>
-      <p className="text-xl font-bold">{value}%</p>
-      <p className="text-xs mt-0.5 opacity-80">{label}</p>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-600/30 text-emerald-400 text-sm"
+    >
+      <CheckCheck size={14} />
+      {message}
+    </motion.div>
   );
 }
 
@@ -88,7 +92,7 @@ function PlanItem({ item, onToggle, onDelete }) {
           : 'bg-slate-800/40 border-slate-700/30'
       }`}
     >
-      <button onClick={() => onToggle(item.id)} className="mt-0.5 flex-shrink-0">
+      <button onClick={() => onToggle(item._id)} className="mt-0.5 flex-shrink-0">
         {item.done
           ? <CheckCircle2 size={18} className="text-emerald-500" />
           : <Circle size={18} className="text-slate-600 hover:text-emerald-500 transition-colors" />
@@ -105,7 +109,7 @@ function PlanItem({ item, onToggle, onDelete }) {
         {item.notes && <p className="text-xs text-slate-600 mt-1 italic">"{item.notes}"</p>}
       </div>
       <button
-        onClick={() => onDelete(item.id)}
+        onClick={() => onDelete(item._id)}
         className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-colors flex-shrink-0"
       >
         <Trash2 size={13} />
@@ -114,176 +118,334 @@ function PlanItem({ item, onToggle, onDelete }) {
   );
 }
 
-// ─── Mock tomorrow plan data ──────────────────────────────────
-const INITIAL_PLAN = [
-  { id: 1, surah: 'Surah Al-Baqarah', fromPage: 6, toPage: 10, notes: 'Focus on ayat al-kursi', done: false },
-  { id: 2, surah: 'Surah Al-Imran', fromPage: 50, toPage: 53, notes: '', done: false },
-];
-
 export default function Quran() {
-  // TODO: GET Quran progress from backend — GET /api/quran/progress
-  const [pagesRead, setPagesRead] = useState(quranProgress.todayCompleted);
+  // ── Progress state ────────────────────────────────────────
+  const [pagesRead, setPagesRead]               = useState(0);
+  const [targetPages, setTargetPages]           = useState(20);
   const [dailyPortionDone, setDailyPortionDone] = useState(false);
-  const [reflection, setReflection] = useState({ ayah: '', lesson: '' });
-  const dailyVerseIndex = getDailyIndex(quranVerses);
+  // Daily plan info (surah + page range stored in QuranProgress)
+  const [dailySurah, setDailySurah]             = useState('');
+  const [dailyFromPage, setDailyFromPage]       = useState(0);
+  const [dailyToPage, setDailyToPage]           = useState(0);
+  // "Not completed" reason flow
+  const [showReasonInput, setShowReasonInput]   = useState(false);
+  const [notCompletedReason, setNotCompletedReason] = useState('');
 
-  // Tomorrow's plan state
-  // TODO: GET tomorrow's Quran plan — GET /api/quran/plan?date=tomorrow
-  const [plan, setPlan] = useState(INITIAL_PLAN);
+  // ── Plan state ────────────────────────────────────────────
+  const [plan, setPlan]       = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [newItem, setNewItem] = useState({ surah: '', fromPage: '', toPage: '', notes: '' });
 
-  const percent = getPercentage(pagesRead, quranProgress.todayTarget);
-  const goalCompleted = pagesRead >= quranProgress.todayTarget;
+  // ── Reflection state ──────────────────────────────────────
+  const [reflection, setReflection] = useState({ ayah: '', lesson: '' });
+  const [reflectionSaved, setReflectionSaved] = useState(false);
+  const [savingReflection, setSavingReflection] = useState(false);
+
+  // ── Loading states ────────────────────────────────────────
+  const [loadingProgress, setLoadingProgress] = useState(true);
+  const [loadingPlan, setLoadingPlan]         = useState(true);
+
+  const dailyVerseIndex = getDailyIndex(quranVerses);
+  const percent = getPercentage(pagesRead, targetPages);
+  const goalCompleted = pagesRead >= targetPages;
   const planDoneCount = plan.filter(p => p.done).length;
 
-  function markPage() {
-    if (pagesRead < quranProgress.todayTarget) {
-      // TODO: Save Quran progress — POST /api/quran/progress
-      setPagesRead(p => p + 1);
+  // ── Fetch on mount ────────────────────────────────────────
+  useEffect(() => {
+    fetchProgress();
+    fetchPlan();
+  }, []);
+
+  async function fetchProgress() {
+    try {
+      setLoadingProgress(true);
+      const res = await get('/quran/progress?date=today');
+      if (res?.data) {
+        setPagesRead(res.data.pagesRead ?? 0);
+        setTargetPages(res.data.targetPages ?? 20);
+        setDailyPortionDone(res.data.dailyPortionDone ?? false);
+        setDailySurah(res.data.surah || '');
+        setDailyFromPage(res.data.fromPage || 0);
+        setDailyToPage(res.data.toPage || 0);
+      }
+    } catch (err) {
+      console.warn('Could not fetch quran progress:', err.message);
+    } finally {
+      setLoadingProgress(false);
     }
   }
 
-  function addPlanItem() {
+  async function fetchPlan() {
+    try {
+      setLoadingPlan(true);
+      const res = await get('/quran/plan?date=tomorrow');
+      setPlan(res?.data || []);
+    } catch (err) {
+      console.warn('Could not fetch quran plan:', err.message);
+    } finally {
+      setLoadingPlan(false);
+    }
+  }
+
+  // ── Mark a page as read ───────────────────────────────────
+  async function markPage() {
+    if (pagesRead >= targetPages) return;
+    const next = pagesRead + 1;
+    setPagesRead(next);
+    try {
+      const res = await post('/quran/progress', { pagesRead: next });
+      if (res?.data) setPagesRead(res.data.pagesRead);
+    } catch (err) {
+      console.error('Mark page failed:', err.message);
+      setPagesRead(pagesRead);
+    }
+  }
+
+  // ── Toggle daily portion done ─────────────────────────────
+  async function toggleDailyPortion() {
+    const next = !dailyPortionDone;
+    setDailyPortionDone(next);
+    try {
+      const res = await post('/quran/progress', { dailyPortionDone: next });
+      if (res?.data) setDailyPortionDone(res.data.dailyPortionDone);
+    } catch (err) {
+      console.error('Toggle daily portion failed:', err.message);
+      setDailyPortionDone(!next);
+    }
+  }
+
+  // ── Submit "not completed" reason ─────────────────────────
+  async function submitNotCompleted() {
+    if (!notCompletedReason.trim()) return;
+    // Save the reason as a Quran reflection note
+    try {
+      await post('/quran/reflection', {
+        ayah: '',
+        lesson: `Not completed today — ${notCompletedReason}`,
+      });
+      setNotCompletedReason('');
+      setShowReasonInput(false);
+    } catch (err) {
+      console.error('Submit not completed reason failed:', err.message);
+    }
+  }
+
+  // ── Plan actions ──────────────────────────────────────────
+  async function addPlanItem() {
     if (!newItem.surah || !newItem.fromPage || !newItem.toPage) return;
-    // TODO: Create Quran plan task — POST /api/quran/plan
-    setPlan(prev => [
-      ...prev,
-      {
-        id: Date.now(),
-        surah: newItem.surah,
+    try {
+      const res = await post('/quran/plan', {
+        surah:    newItem.surah,
         fromPage: parseInt(newItem.fromPage),
-        toPage: parseInt(newItem.toPage),
-        notes: newItem.notes,
-        done: false,
-      },
-    ]);
-    setNewItem({ surah: '', fromPage: '', toPage: '', notes: '' });
-    setShowForm(false);
+        toPage:   parseInt(newItem.toPage),
+        notes:    newItem.notes,
+      });
+      setPlan(prev => [...prev, res.data]);
+      setNewItem({ surah: '', fromPage: '', toPage: '', notes: '' });
+      setShowForm(false);
+    } catch (err) {
+      console.error('Add quran plan item failed:', err.message);
+    }
   }
 
-  function togglePlanItem(id) {
-    // TODO: Update Quran plan task — PATCH /api/quran/plan/:id
-    setPlan(prev => prev.map(p => p.id === id ? { ...p, done: !p.done } : p));
+  async function togglePlanItem(id) {
+    const current = plan.find(p => p._id === id);
+    if (!current) return;
+    // Optimistic
+    setPlan(prev => prev.map(p => p._id === id ? { ...p, done: !p.done } : p));
+    try {
+      await patch(`/quran/plan/${id}`, { done: !current.done });
+    } catch (err) {
+      console.error('Toggle plan item failed:', err.message);
+      setPlan(prev => prev.map(p => p._id === id ? { ...p, done: current.done } : p));
+    }
   }
 
-  function deletePlanItem(id) {
-    // TODO: Delete Quran plan task — DELETE /api/quran/plan/:id
-    setPlan(prev => prev.filter(p => p.id !== id));
+  async function deletePlanItem(id) {
+    setPlan(prev => prev.filter(p => p._id !== id)); // optimistic
+    try {
+      await del(`/quran/plan/${id}`);
+    } catch (err) {
+      console.error('Delete plan item failed:', err.message);
+      fetchPlan(); // restore
+    }
   }
 
-  function saveReflection() {
-    // TODO: Save Quran reflection — POST /api/quran/reflection
-    alert('Reflection saved (mock). TODO: Connect to backend.');
+  // ── Reflection ────────────────────────────────────────────
+  async function saveReflection() {
+    setSavingReflection(true);
+    try {
+      await post('/quran/reflection', reflection);
+      setReflection({ ayah: '', lesson: '' }); // clear after save
+      setReflectionSaved(true);
+      setTimeout(() => setReflectionSaved(false), 3000);
+    } catch (err) {
+      console.error('Save reflection failed:', err.message);
+    } finally {
+      setSavingReflection(false);
+    }
   }
 
   return (
     <PageLayout title="Quran" subtitle="Daily consistency with the Book of Allah">
       <div className="space-y-4">
 
-        {/* Daily reminder */}
-        <DailyReminderCard verse={quranVerses[(dailyVerseIndex + 2) % quranVerses.length]} />
-
-        {/* ── SECTION 1: Daily Portion (non-skippable) ── */}
+        {/* ── Islamic banner (replaces DailyReminderCard) ── */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className={`rounded-2xl border-2 p-5 transition-all duration-500 ${
-            dailyPortionDone
-              ? 'border-emerald-600/50 bg-gradient-to-br from-emerald-950/30 to-slate-900'
-              : 'border-emerald-900/60 bg-gradient-to-br from-slate-900 to-emerald-950/20'
-          }`}
+          transition={{ duration: 0.5 }}
+          className="rounded-2xl border border-emerald-900/30 bg-gradient-to-br from-emerald-950/30 to-slate-900 px-5 py-5 text-center"
         >
-          {/* Header */}
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle size={13} className="text-emerald-500" />
-                <p className="text-xs text-emerald-500 font-semibold uppercase tracking-wider">
-                  Daily Portion — Do Not Skip
-                </p>
-              </div>
-              <h3 className="text-lg font-bold text-slate-100">Today's Quran Reading</h3>
-              <p className="text-sm text-slate-400 mt-0.5">Surah Al-Baqarah · Page 2 → Page 6</p>
-            </div>
-            <ProgressRing percentage={percent} size={72} strokeWidth={6} color="#10b981" />
-          </div>
-
-          {/* Page progress dots */}
-          <div className="flex gap-2 flex-wrap mb-5">
-            {Array.from({ length: quranProgress.todayTarget }).map((_, i) => (
-              <motion.button
-                key={i}
-                onClick={() => {
-                  if (i === pagesRead && pagesRead < quranProgress.todayTarget) markPage();
-                }}
-                whileTap={{ scale: 0.9 }}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-semibold border transition-all ${
-                  i < pagesRead
-                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-900/30'
-                    : i === pagesRead
-                    ? 'bg-slate-800 border-emerald-700/50 text-emerald-400 ring-1 ring-emerald-700/40'
-                    : 'bg-slate-800/40 border-slate-700/30 text-slate-600'
-                }`}
-              >
-                {i < pagesRead ? <CheckCircle2 size={14} /> : i + 1}
-              </motion.button>
-            ))}
-          </div>
-
-          <p className="text-xs text-slate-500 mb-4">
-            {pagesRead} of {quranProgress.todayTarget} pages read today
-          </p>
-
-          {/* Daily portion checkbox */}
-          <div
-            onClick={() => setDailyPortionDone(d => !d)}
-            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all mb-4 ${
-              dailyPortionDone
-                ? 'bg-emerald-600/15 border-emerald-600/40'
-                : 'bg-slate-800/40 border-slate-700/30 hover:border-emerald-800/50'
-            }`}
+          <p
+            className="font-arabic text-2xl text-emerald-200 leading-loose mb-2"
+            dir="rtl"
+            lang="ar"
           >
-            {dailyPortionDone
-              ? <CheckCircle2 size={20} className="text-emerald-500 flex-shrink-0" />
-              : <Circle size={20} className="text-slate-600 flex-shrink-0" />
-            }
-            <div>
-              <p className={`text-sm font-medium ${dailyPortionDone ? 'text-emerald-400 line-through' : 'text-slate-200'}`}>
-                I completed my daily Quran portion
-              </p>
-              <p className="text-xs text-slate-600 mt-0.5">
-                {dailyPortionDone ? 'Alhamdulillah — may Allah accept it' : 'Tap to mark as complete'}
-              </p>
-            </div>
-          </div>
-
-          {/* Mark page button */}
-          {!goalCompleted ? (
-            <button
-              onClick={markPage}
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 size={15} />
-              Mark Page {pagesRead + 1} as Read
-            </button>
-          ) : (
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="w-full py-3 rounded-xl bg-emerald-600/20 border border-emerald-600/30 text-emerald-400 text-sm font-semibold flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 size={15} />
-              Goal Complete — Alhamdulillah!
-            </motion.div>
-          )}
+            أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ
+          </p>
+          <p className="font-display text-slate-400 text-sm italic">
+            "Verily, in the remembrance of Allah do hearts find rest."
+          </p>
+          <p className="text-xs text-emerald-700 mt-1">Surah Ar-Ra'd 13:28</p>
         </motion.div>
 
-        {/* ── SECTION 2: Tomorrow's Quran Plan ── */}
-        {/* TODO: GET tomorrow's Quran plan — GET /api/quran/plan?date=tomorrow */}
-        {/* TODO: Create Quran plan task — POST /api/quran/plan */}
-        {/* TODO: Delete Quran plan task — DELETE /api/quran/plan/:id */}
+        {/* ── SECTION 1: Daily Portion ── */}
+        {loadingProgress ? (
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/50 p-6">
+            <LoadingSpinner message="Loading today's progress..." />
+          </div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className={`rounded-2xl border-2 p-5 transition-all duration-500 ${
+              dailyPortionDone
+                ? 'border-emerald-600/50 bg-gradient-to-br from-emerald-950/30 to-slate-900'
+                : 'border-emerald-900/60 bg-gradient-to-br from-slate-900 to-emerald-950/20'
+            }`}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle size={13} className="text-emerald-500" />
+                  <p className="text-xs text-emerald-500 font-semibold uppercase tracking-wider">
+                    Daily Portion — Do Not Skip
+                  </p>
+                </div>
+                <h3 className="text-lg font-bold text-slate-100 mb-1">Today's Quran Reading</h3>
+
+                {/* Dynamic daily plan — from tomorrow's plan that became today */}
+                {dailySurah ? (
+                  <p className="text-sm text-emerald-300 font-medium">
+                    {dailySurah}
+                    {dailyFromPage > 0 && dailyToPage > 0 && (
+                      <span className="text-slate-400 font-normal"> · Page {dailyFromPage} → {dailyToPage}</span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-400">
+                    Your daily portion: <span className="text-emerald-400 font-semibold">{targetPages} pages</span>
+                  </p>
+                )}
+              </div>
+              <ProgressRing percentage={percent} size={68} strokeWidth={6} color="#10b981" />
+            </div>
+
+            {/* Daily portion checkbox */}
+            <div
+              onClick={toggleDailyPortion}
+              className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all mb-4 ${
+                dailyPortionDone
+                  ? 'bg-emerald-600/15 border-emerald-600/40'
+                  : 'bg-slate-800/40 border-slate-700/30 hover:border-emerald-800/50'
+              }`}
+            >
+              {dailyPortionDone
+                ? <CheckCircle2 size={20} className="text-emerald-500 flex-shrink-0" />
+                : <Circle size={20} className="text-slate-600 flex-shrink-0" />
+              }
+              <div>
+                <p className={`text-sm font-medium ${dailyPortionDone ? 'text-emerald-400 line-through' : 'text-slate-200'}`}>
+                  I completed my daily Quran portion
+                </p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {dailyPortionDone ? 'Alhamdulillah — may Allah accept it' : 'Tap to mark as complete'}
+                </p>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            {!dailyPortionDone ? (
+              <div className="space-y-2">
+                <button
+                  onClick={toggleDailyPortion}
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 size={15} />
+                  Mark as Read — Completed
+                </button>
+
+                {/* Not completed flow */}
+                {!showReasonInput ? (
+                  <button
+                    onClick={() => setShowReasonInput(true)}
+                    className="w-full py-2.5 rounded-xl border border-slate-700/50 hover:border-red-800/50 text-slate-500 hover:text-red-400 text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <XCircle size={14} />
+                    Not Completed Today
+                  </button>
+                ) : (
+                  <AnimatePresence>
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-2 overflow-hidden"
+                    >
+                      <textarea
+                        value={notCompletedReason}
+                        onChange={e => setNotCompletedReason(e.target.value)}
+                        placeholder="Why couldn't you complete it today? (e.g. was sick, had exams...)"
+                        rows={2}
+                        className="w-full bg-slate-800/60 border border-red-900/40 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-700/60 transition-colors resize-none"
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={submitNotCompleted}
+                          disabled={!notCompletedReason.trim()}
+                          className="flex-1 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-600/30 text-red-400 text-sm font-medium transition-colors disabled:opacity-40"
+                        >
+                          Save Reason
+                        </button>
+                        <button
+                          onClick={() => { setShowReasonInput(false); setNotCompletedReason(''); }}
+                          className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm font-medium transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+                )}
+              </div>
+            ) : (
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="w-full py-3 rounded-xl bg-emerald-600/20 border border-emerald-600/30 text-emerald-400 text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={15} />
+                Goal Complete — Alhamdulillah!
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {/* ── SECTION 2: Tomorrow's Reading Plan ── */}
         <Section
           title="Tomorrow's Reading Plan"
           subtitle="Plan what you will read tomorrow"
@@ -293,18 +455,22 @@ export default function Quran() {
           defaultOpen={true}
         >
           <div className="space-y-3 mt-3">
-            <AnimatePresence>
-              {plan.map(item => (
-                <PlanItem
-                  key={item.id}
-                  item={item}
-                  onToggle={togglePlanItem}
-                  onDelete={deletePlanItem}
-                />
-              ))}
-            </AnimatePresence>
+            {loadingPlan ? (
+              <LoadingSpinner message="Loading plan..." />
+            ) : (
+              <AnimatePresence>
+                {plan.map(item => (
+                  <PlanItem
+                    key={item._id}
+                    item={item}
+                    onToggle={togglePlanItem}
+                    onDelete={deletePlanItem}
+                  />
+                ))}
+              </AnimatePresence>
+            )}
 
-            {plan.length === 0 && !showForm && (
+            {!loadingPlan && plan.length === 0 && !showForm && (
               <p className="text-sm text-slate-600 text-center py-3 italic">
                 No reading planned yet for tomorrow.
               </p>
@@ -394,47 +560,7 @@ export default function Quran() {
           </div>
         </Section>
 
-        {/* ── SECTION 3: Streak & Consistency ── */}
-        <Section
-          title="Streak & Consistency"
-          subtitle="Keep the chain unbroken"
-          icon={Flame}
-          iconColor="text-orange-400"
-          defaultOpen={true}
-        >
-          <div className="mt-3 space-y-4">
-            {/* Streak */}
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-orange-500/5 border border-orange-500/10">
-              <div className="text-3xl font-bold text-orange-400">{quranProgress.currentStreak}</div>
-              <div>
-                <p className="text-sm font-medium text-slate-300">Day Streak</p>
-                <p className="text-xs text-slate-500">Don't break the chain — keep going</p>
-              </div>
-            </div>
-
-            {/* Consistency badges */}
-            <div className="grid grid-cols-3 gap-2">
-              <ConsistencyBadge label="Weekly" value={92} color="emerald" />
-              <ConsistencyBadge label="Monthly" value={quranProgress.monthlyConsistency} color="blue" />
-              <ConsistencyBadge label="Overall" value={89} color="amber" />
-            </div>
-
-            {/* Weekly bar */}
-            <div>
-              <p className="text-xs text-slate-500 mb-3">Pages this week</p>
-              <WeeklyBar
-                data={quranProgress.weeklyData}
-                valueKey="pages"
-                maxValue={5}
-                color="#10b981"
-                unit=" pages"
-              />
-            </div>
-          </div>
-        </Section>
-
-        {/* ── SECTION 4: Reflection ── */}
-        {/* TODO: Save Quran reflection — POST /api/quran/reflection */}
+        {/* ── SECTION 3: Reflection ── */}
         <Section
           title="Today's Reflection"
           subtitle="What did the Quran say to your heart today?"
@@ -467,17 +593,20 @@ export default function Quran() {
                 className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-700/60 focus:ring-1 focus:ring-emerald-700/30 transition-colors resize-none"
               />
             </div>
+            <AnimatePresence>
+              {reflectionSaved && <SuccessToast message="Reflection saved — Alhamdulillah!" />}
+            </AnimatePresence>
             <button
               onClick={saveReflection}
-              className="w-full py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/30 text-emerald-400 text-sm font-medium transition-colors"
+              disabled={savingReflection}
+              className="w-full py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/30 text-emerald-400 text-sm font-medium transition-colors disabled:opacity-50"
             >
-              Save Reflection
+              {savingReflection ? 'Saving...' : 'Save Reflection'}
             </button>
           </div>
         </Section>
 
         {/* Daily Quran verse */}
-        {/* TODO: Fetch daily Quran verse from backend */}
         <QuranVerseCard verse={quranVerses[dailyVerseIndex]} />
 
         {/* Hadith footer */}
