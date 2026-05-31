@@ -1,8 +1,9 @@
 // ─── API Utility ─────────────────────────────────────────────
 // All backend calls go through this file.
-// Change BASE_URL here when deploying to production.
+// In development: uses VITE_API_URL from .env.local (defaults to localhost:5000)
+// In production:  set VITE_API_URL to your deployed backend URL
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // ─── Core fetch wrapper ───────────────────────────────────────
 async function request(path, options = {}) {
