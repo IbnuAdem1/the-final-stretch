@@ -509,7 +509,7 @@ export default function Study() {
             {/* Latest mentor message */}
             {loadingMentor ? (
               <LoadingSpinner message="Loading feedback..." />
-            ) : (
+            ) : mentorMsg && mentorMsg.message ? (
               <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-7 h-7 rounded-full bg-emerald-600/20 border border-emerald-600/30 flex items-center justify-center">
@@ -531,6 +531,11 @@ export default function Study() {
                 <p className="text-sm text-slate-300 leading-relaxed italic font-display">
                   "{mentorMsg.message}"
                 </p>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-slate-800/20 border border-slate-700/20 p-4 text-center">
+                <p className="text-sm text-slate-500">No feedback yet.</p>
+                <p className="text-xs text-slate-600 mt-1">Unlock mentor mode below to leave feedback.</p>
               </div>
             )}
 

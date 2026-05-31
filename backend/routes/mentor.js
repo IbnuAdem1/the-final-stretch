@@ -3,14 +3,6 @@ const router = express.Router();
 const MentorFeedback = require('../models/MentorFeedback');
 const Settings = require('../models/Settings');
 
-// Default feedback shown before any real feedback is saved
-const DEFAULT_FEEDBACK = {
-  message:
-    'Good progress today, Ansar. Your consistency in Mathematics is showing. Focus more on Biology tomorrow — especially Genetics. Keep up the Fajr streak, it sets the tone for the whole day.',
-  mentorName: 'Ahmed',
-  createdAt: new Date(),
-};
-
 // ─── GET /api/mentor/feedback ─────────────────────────────────
 // Returns the most recent mentor feedback document
 router.get('/feedback', async (req, res) => {
@@ -20,7 +12,8 @@ router.get('/feedback', async (req, res) => {
       message: { $ne: '__probe__' }
     }).sort({ createdAt: -1 });
 
-    res.json({ success: true, data: feedback || DEFAULT_FEEDBACK });
+    // Return null data if no real feedback exists — no hardcoded fallback
+    res.json({ success: true, data: feedback || null });
   } catch (error) {
     console.error('GET /api/mentor/feedback error:', error.message);
     res.status(500).json({ success: false, message: 'Server error fetching mentor feedback' });
