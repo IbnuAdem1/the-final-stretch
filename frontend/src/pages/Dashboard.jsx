@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Moon, BookMarked, Flame, Clock, Calendar, ChevronRight } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
-import { QuranVerseCard, HadithCard } from '../components/IslamicCard';
 import ProgressRing from '../components/ProgressRing';
 import {
   getTodayFormatted,
@@ -124,6 +123,119 @@ function MainCard({ icon: Icon, title, percentage, streak, streakLabel, actionLa
   );
 }
 
+// ─── Swipeable Quote Card ─────────────────────────────────────
+// TODO: Fetch daily Quran verse from backend — GET /api/quran/verse/daily
+// TODO: Fetch daily Hadith from backend — GET /api/hadith/daily
+function SwipeableQuoteCard({ verse, hadith }) {
+  const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const dragStartX = useRef(0);
+
+  const slides = [
+    { type: 'Quran', label: 'Quran', pillStyle: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', content: verse },
+    { type: 'Hadith', label: 'Hadith', pillStyle: 'text-amber-400 bg-amber-500/10 border-amber-500/20', content: hadith },
+  ];
+
+  function goTo(next) {
+    setDirection(next > index ? 1 : -1);
+    setIndex(next);
+  }
+
+  function handleDragEnd(_, info) {
+    if (info.offset.x < -40 && index < slides.length - 1) goTo(index + 1);
+    else if (info.offset.x > 40 && index > 0) goTo(index - 1);
+  }
+
+  const current = slides[index];
+
+  const variants = {
+    enter: (dir) => ({ x: dir > 0 ? 60 : -60, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir) => ({ x: dir > 0 ? -60 : 60, opacity: 0 }),
+  };
+
+  return (
+    <div className="space-y-2">
+      <div
+        className="relative overflow-hidden rounded-2xl border border-slate-800/60 bg-gradient-to-br from-slate-900 to-slate-800/40 cursor-grab active:cursor-grabbing select-none"
+        style={{ minHeight: 200 }}
+      >
+        <AnimatePresence custom={direction} mode="wait">
+          <motion.div
+            key={index}
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.28, ease: 'easeInOut' }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.15}
+            onDragEnd={handleDragEnd}
+            className="p-6"
+          >
+            {/* Pill tag */}
+            <div className="mb-4">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${current.pillStyle}`}>
+                {current.label}
+              </span>
+            </div>
+
+            {current.type === 'Quran' ? (
+              <>
+                {/* Decorative corner */}
+                <div className="absolute top-0 right-0 w-20 h-20 opacity-5 pointer-events-none">
+                  <svg viewBox="0 0 100 100" fill="none">
+                    <circle cx="100" cy="0" r="80" stroke="#10b981" strokeWidth="1" fill="none" />
+                    <circle cx="100" cy="0" r="55" stroke="#10b981" strokeWidth="1" fill="none" />
+                    <circle cx="100" cy="0" r="30" stroke="#10b981" strokeWidth="1" fill="none" />
+                  </svg>
+                </div>
+                <p className="font-arabic text-2xl text-right text-emerald-100 leading-loose mb-4" dir="rtl" lang="ar">
+                  {current.content.arabic}
+                </p>
+                <div className="w-10 h-px bg-emerald-800 mx-auto mb-3" />
+                <p className="font-display text-slate-300 text-sm italic leading-relaxed text-center mb-2">
+                  "{current.content.translation}"
+                </p>
+                <p className="text-xs text-emerald-600 text-center">{current.content.reference}</p>
+              </>
+            ) : (
+              <>
+                <p className="font-display text-slate-200 text-base italic leading-relaxed mb-4">
+                  "{current.content.text}"
+                </p>
+                <p className="text-xs text-slate-500">— {current.content.source}</p>
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Page dot indicator */}
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              className={`rounded-full transition-all duration-300 ${
+                i === index
+                  ? 'w-4 h-1.5 bg-emerald-500'
+                  : 'w-1.5 h-1.5 bg-slate-600 hover:bg-slate-400'
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Swipe hint */}
+      <p className="text-xs text-slate-600 text-center">
+        {index === 0 ? 'Swipe for Hadith →' : '← Swipe for Quran'}
+      </p>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const daysRemaining = getDaysRemaining(EXAM_DATE);
@@ -228,13 +340,11 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Daily Quran verse */}
-        {/* TODO: Fetch daily Quran verse from backend */}
-        <QuranVerseCard verse={quranVerses[dailyVerseIndex]} />
-
-        {/* Daily Hadith */}
-        {/* TODO: Fetch daily Hadith from backend */}
-        <HadithCard hadith={hadiths[dailyHadithIndex]} />
+        {/* Swipeable Quote Card — Quran verse + Hadith */}
+        <SwipeableQuoteCard
+          verse={quranVerses[dailyVerseIndex]}
+          hadith={hadiths[dailyHadithIndex]}
+        />
 
       </div>
     </PageLayout>
