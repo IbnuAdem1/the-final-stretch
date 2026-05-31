@@ -132,7 +132,7 @@ router.get('/', async (req, res) => {
     ]);
 
     // ── Exam date ─────────────────────────────────────────
-    const examDate = settings?.examDate || new Date('2025-11-15T08:00:00.000Z');
+    const examDate = settings?.examDate || new Date('2026-07-01T08:00:00.000Z');
 
     // ── Today's Study ─────────────────────────────────────
     const studyCompleted = todayTasks.filter(t => t.completed).length;
