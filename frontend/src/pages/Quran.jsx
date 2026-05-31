@@ -121,7 +121,7 @@ function PlanItem({ item, onToggle, onDelete }) {
 export default function Quran() {
   // ── Progress state ────────────────────────────────────────
   const [pagesRead, setPagesRead]               = useState(0);
-  const [targetPages, setTargetPages]           = useState(20);
+  const [targetPages, setTargetPages]           = useState(null);
   const [dailyPortionDone, setDailyPortionDone] = useState(false);
   // Daily plan info (surah + page range stored in QuranProgress)
   const [dailySurah, setDailySurah]             = useState('');
@@ -146,8 +146,8 @@ export default function Quran() {
   const [loadingPlan, setLoadingPlan]         = useState(true);
 
   const dailyVerseIndex = getDailyIndex(quranVerses);
-  const percent = getPercentage(pagesRead, targetPages);
-  const goalCompleted = pagesRead >= targetPages;
+  const percent       = targetPages ? getPercentage(pagesRead, targetPages) : 0;
+  const goalCompleted = targetPages ? pagesRead >= targetPages : false;
   const planDoneCount = plan.filter(p => p.done).length;
 
   // ── Fetch on mount ────────────────────────────────────────
@@ -162,7 +162,7 @@ export default function Quran() {
       const res = await get('/quran/progress?date=today');
       if (res?.data) {
         setPagesRead(res.data.pagesRead ?? 0);
-        setTargetPages(res.data.targetPages ?? 20);
+        setTargetPages(res.data.targetPages);
         setDailyPortionDone(res.data.dailyPortionDone ?? false);
         setDailySurah(res.data.surah || '');
         setDailyFromPage(res.data.fromPage || 0);
@@ -347,7 +347,11 @@ export default function Quran() {
                   </p>
                 ) : (
                   <p className="text-sm text-slate-400">
-                    Your daily portion: <span className="text-emerald-400 font-semibold">{targetPages} pages</span>
+                    Your daily portion:{' '}
+                    {targetPages !== null
+                      ? <span className="text-emerald-400 font-semibold">{targetPages} pages</span>
+                      : <span className="text-slate-600 animate-pulse">loading...</span>
+                    }
                   </p>
                 )}
               </div>
