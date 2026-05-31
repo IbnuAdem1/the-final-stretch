@@ -19,7 +19,7 @@
   --color-slate-950: #020617;
 
   --font-arabic: 'Amiri', serif;
-  --font-display: 'Playfair Display', serif;
+  --font-display: 'Lora', serif;
   --font-body: 'Inter', sans-serif;
 }
 
@@ -44,7 +44,7 @@ body {
 }
 
 .font-display {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Lora', serif;
 }
 
 /* Custom scrollbar */
