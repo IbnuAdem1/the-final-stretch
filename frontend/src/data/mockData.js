@@ -158,7 +158,7 @@ export const studyStats = {
 // TODO: Fetch mentor feedback from backend — GET /api/mentor/feedback
 export const mentorFeedback = {
   message: 'Good progress today, Ansar. Your consistency in Mathematics is showing. Focus more on Biology tomorrow — especially Genetics. Keep up the Fajr streak, it sets the tone for the whole day.',
-  mentorName: 'Ustadh Ibrahim',
+  mentorName: 'Ahmed',
   timestamp: 'Today, 9:30 PM',
 };
 

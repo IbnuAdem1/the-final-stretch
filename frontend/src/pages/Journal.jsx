@@ -321,7 +321,7 @@ function FeedbackItem({ fb, mentorCode, onUpdated }) {
           <div className="w-5 h-5 rounded-full bg-purple-600/20 border border-purple-600/30 flex items-center justify-center">
             <User size={10} className="text-purple-400" />
           </div>
-          <p className="text-xs font-medium text-slate-300">{fb.mentorName || 'Ustadh Ibrahim'}</p>
+          <p className="text-xs font-medium text-slate-300">{fb.mentorName || 'Ahmed'}</p>
           {fb.createdAt && (
             <p className="text-xs text-slate-600">
               {new Date(fb.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -488,7 +488,7 @@ function MentorFeedbackForm({ onUnlocked, onSubmitted }) {
     if (!message.trim()) return;
     setSaving(true);
     try {
-      await post('/mentor/feedback', { message, mentorName: 'Ustadh Ibrahim', mentorCode: code });
+      await post('/mentor/feedback', { message, mentorName: 'Ahmed', mentorCode: code });
       setMessage('');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);

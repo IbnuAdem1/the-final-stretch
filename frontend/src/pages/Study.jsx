@@ -300,7 +300,7 @@ export default function Study() {
     try {
       const res = await post('/mentor/feedback', {
         message: mentorInput,
-        mentorName: 'Ustadh Ibrahim',
+        mentorName: 'Ahmed',
         mentorCode,
       });
       setMentorMsg(res.data);
@@ -517,7 +517,7 @@ export default function Study() {
                   </div>
                   <div>
                     <p className="text-xs font-medium text-slate-300">
-                      {mentorMsg.mentorName || 'Ustadh Ibrahim'}
+                      {mentorMsg.mentorName || 'Ahmed'}
                     </p>
                     {mentorMsg.createdAt && (
                       <p className="text-xs text-slate-600">

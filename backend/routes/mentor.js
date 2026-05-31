@@ -7,7 +7,7 @@ const Settings = require('../models/Settings');
 const DEFAULT_FEEDBACK = {
   message:
     'Good progress today, Ansar. Your consistency in Mathematics is showing. Focus more on Biology tomorrow — especially Genetics. Keep up the Fajr streak, it sets the tone for the whole day.',
-  mentorName: 'Ustadh Ibrahim',
+  mentorName: 'Ahmed',
   createdAt: new Date(),
 };
 
@@ -69,7 +69,7 @@ router.post('/feedback', async (req, res) => {
 
     const feedback = await MentorFeedback.create({
       message,
-      mentorName: mentorName || 'Ustadh Ibrahim',
+      mentorName: mentorName || 'Ahmed',
     });
 
     res.status(201).json({ success: true, data: feedback });

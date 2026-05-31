@@ -10,7 +10,7 @@ const mentorFeedbackSchema = new mongoose.Schema(
 
     mentorName: {
       type: String,
-      default: 'Ustadh Ibrahim',
+      default: 'Ahmed',
       trim: true,
     },
   },
