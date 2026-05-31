@@ -12,7 +12,6 @@ import {
 } from '../utils/helpers';
 import { get } from '../utils/api';
 import {
-  EXAM_DATE as MOCK_EXAM_DATE,
   quranVerses,
   hadiths,
 } from '../data/mockData';
@@ -21,21 +20,23 @@ import {
 
 // Countdown timer component — accepts examDate as prop so it can use live backend data
 function CountdownTimer({ examDate }) {
-  const [parts, setParts] = useState(() => getCountdownParts(examDate));
+  const [parts, setParts] = useState(() => examDate ? getCountdownParts(examDate) : null);
 
   useEffect(() => {
-    // Update immediately when examDate changes, then tick every second
+    if (!examDate) return;
+    // Set immediately, then tick every second
+    setParts(getCountdownParts(examDate));
     const interval = setInterval(() => {
       setParts(getCountdownParts(examDate));
     }, 1000);
     return () => clearInterval(interval);
-  }, [examDate]); // re-run when examDate changes
+  }, [examDate]);
 
   const units = [
-    { label: 'Days', value: parts.days },
-    { label: 'Hours', value: parts.hours },
-    { label: 'Min', value: parts.minutes },
-    { label: 'Sec', value: parts.seconds },
+    { label: 'Days',  value: parts?.days    ?? '--' },
+    { label: 'Hours', value: parts?.hours   ?? '--' },
+    { label: 'Min',   value: parts?.minutes ?? '--' },
+    { label: 'Sec',   value: parts?.seconds ?? '--' },
   ];
 
   return (
@@ -49,7 +50,7 @@ function CountdownTimer({ examDate }) {
               animate={{ y: 0, opacity: 1 }}
               className="text-xl font-bold text-emerald-400 tabular-nums w-10 text-center"
             >
-              {String(value).padStart(2, '0')}
+              {typeof value === 'number' ? String(value).padStart(2, '0') : value}
             </motion.span>
             <span className="text-[9px] text-slate-600 uppercase tracking-wider">{label}</span>
           </div>
@@ -255,7 +256,7 @@ export default function Dashboard() {
   const dailyHadithIndex = getDailyIndex(hadiths);
 
   // ── Dashboard data from /api/dashboard ───────────────────
-  const [examDate,      setExamDate]      = useState(MOCK_EXAM_DATE);
+  const [examDate,      setExamDate]      = useState(null);
   const [studyStreak,   setStudyStreak]   = useState(0);
   const [quranStreak,   setQuranStreak]   = useState(0);
   const [salahStreak,   setSalahStreak]   = useState(0);
@@ -289,7 +290,7 @@ export default function Dashboard() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
-  const daysRemaining = getDaysRemaining(examDate);
+  const daysRemaining = examDate ? getDaysRemaining(examDate) : null;
 
   return (
     <PageLayout>
@@ -331,7 +332,7 @@ export default function Dashboard() {
                 <span className="text-slate-600 animate-pulse">calculating...</span>
               ) : (
                 <>
-                  <span className="text-emerald-400 font-semibold">{daysRemaining} days</span> remaining
+                  <span className="text-emerald-400 font-semibold">{daysRemaining ?? '...'} days</span> remaining
                 </>
               )}
             </p>
