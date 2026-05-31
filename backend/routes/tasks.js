@@ -52,7 +52,7 @@ router.get('/', async (req, res) => {
 // Creates a new study task
 router.post('/', async (req, res) => {
   try {
-    const { subject, task, duration, estimatedHours, priority, isForTomorrow } = req.body;
+    const { subject, task, duration, estimatedHours, priority, place, isForTomorrow } = req.body;
 
     if (!subject || !task) {
       return res.status(400).json({ success: false, message: 'subject and task are required' });
@@ -72,6 +72,7 @@ router.post('/', async (req, res) => {
       duration: duration || '',
       estimatedHours: estimatedHours || 1,
       priority: priority || 'medium',
+      place: place || '',
       completed: false,
       isForTomorrow: isForTomorrow || false,
     });

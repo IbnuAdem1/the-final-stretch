@@ -45,6 +45,13 @@ const studyTaskSchema = new mongoose.Schema(
       default: false,
     },
 
+    // Where Ansar plans to study — e.g. "Library", "Home", "Masjid"
+    place: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
     // true  = this is a plan item for tomorrow
     // false = this is a task for today
     isForTomorrow: {
