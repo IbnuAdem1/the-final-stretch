@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Plus, Trash2, BookOpen,
-  MessageSquare, ChevronDown, ChevronUp, User, Lock
+  MessageSquare, ChevronDown, ChevronUp, User, Lock, CheckCheck
 } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import { DailyReminderCard } from '../components/IslamicCard';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { getSubjectColor, getPriorityColor, getDailyIndex } from '../utils/helpers';
-import { todaysTasks, tomorrowPlan, mentorFeedback, quranVerses } from '../data/mockData';
+import { get, post, patch, del } from '../utils/api';
+// Mock data kept as reference only — no longer used for initial state
+// import { todaysTasks, tomorrowPlan, mentorFeedback, quranVerses } from '../data/mockData';
+import { quranVerses } from '../data/mockData';
 
 // ─── Section wrapper ──────────────────────────────────────────
 function Section({ title, subtitle, children, defaultOpen = true }) {
@@ -22,7 +26,10 @@ function Section({ title, subtitle, children, defaultOpen = true }) {
           <h3 className="font-semibold text-slate-200 text-sm">{title}</h3>
           {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
         </div>
-        {open ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+        {open
+          ? <ChevronUp size={16} className="text-slate-500 flex-shrink-0" />
+          : <ChevronDown size={16} className="text-slate-500 flex-shrink-0" />
+        }
       </button>
       <AnimatePresence initial={false}>
         {open && (
@@ -43,6 +50,21 @@ function Section({ title, subtitle, children, defaultOpen = true }) {
   );
 }
 
+// ─── Inline success toast ─────────────────────────────────────
+function SuccessToast({ message }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-600/30 text-emerald-400 text-sm"
+    >
+      <CheckCheck size={14} />
+      {message}
+    </motion.div>
+  );
+}
+
 // ─── Task item ────────────────────────────────────────────────
 function TaskItem({ task, onToggle }) {
   return (
@@ -50,7 +72,7 @@ function TaskItem({ task, onToggle }) {
       layout
       className={`flex items-start gap-3 py-3 border-b border-slate-800/40 last:border-0 ${task.completed ? 'opacity-60' : ''}`}
     >
-      <button onClick={() => onToggle(task.id)} className="mt-0.5 flex-shrink-0">
+      <button onClick={() => onToggle(task._id)} className="mt-0.5 flex-shrink-0">
         {task.completed
           ? <CheckCircle2 size={18} className="text-emerald-500" />
           : <Circle size={18} className="text-slate-600 hover:text-emerald-500 transition-colors" />
@@ -64,7 +86,7 @@ function TaskItem({ task, onToggle }) {
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectColor(task.subject)}`}>
             {task.subject}
           </span>
-          <span className="text-xs text-slate-600">{task.duration}</span>
+          {task.duration && <span className="text-xs text-slate-600">{task.duration}</span>}
         </div>
       </div>
     </motion.div>
@@ -94,8 +116,8 @@ function PlanCard({ item, onDelete }) {
         <p className="text-xs text-slate-500 mt-1">{item.estimatedHours}h estimated</p>
       </div>
       <button
-        onClick={() => onDelete(item.id)}
-        className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+        onClick={() => onDelete(item._id)}
+        className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-colors flex-shrink-0"
       >
         <Trash2 size={14} />
       </button>
@@ -104,65 +126,192 @@ function PlanCard({ item, onDelete }) {
 }
 
 export default function Study() {
-  // TODO: GET today's tasks from backend — GET /api/tasks?date=today
-  const [tasks, setTasks] = useState(todaysTasks);
-
-  // TODO: GET tomorrow's plan from backend — GET /api/tasks?date=tomorrow
-  const [plan, setPlan] = useState(tomorrowPlan);
-
-  // Reflection state
+  // ── State ─────────────────────────────────────────────────
+  const [tasks, setTasks] = useState([]);
+  const [plan, setPlan] = useState([]);
   const [reflection, setReflection] = useState({ wentWell: '', distracted: '', improve: '' });
-
-  // Tomorrow form state
-  const [newTask, setNewTask] = useState({ subject: '', task: '', estimatedHours: '', priority: 'medium' });
-  const [showForm, setShowForm] = useState(false);
-
-  // Mentor mode
-  const [mentorMode, setMentorMode] = useState(false);
+  const [mentorMsg, setMentorMsg] = useState({ message: '', mentorName: '', timestamp: '' });
   const [mentorInput, setMentorInput] = useState('');
   const [mentorCode, setMentorCode] = useState('');
   const [mentorUnlocked, setMentorUnlocked] = useState(false);
 
-  const MENTOR_CODE = '786'; // Simple frontend-only gate — TODO: Replace with real auth
+  // Loading states
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [loadingPlan, setLoadingPlan] = useState(true);
+  const [loadingMentor, setLoadingMentor] = useState(true);
 
-  const completedCount = tasks.filter(t => t.completed).length;
+  // Action states
+  const [savingReflection, setSavingReflection] = useState(false);
+  const [reflectionSaved, setReflectionSaved] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [feedbackSaved, setFeedbackSaved] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+
   const dailyVerseIndex = getDailyIndex(quranVerses);
+  const completedCount = tasks.filter(t => t.completed).length;
 
-  function toggleTask(id) {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  // ── Fetch on mount ────────────────────────────────────────
+  useEffect(() => {
+    fetchTasks();
+    fetchPlan();
+    fetchMentorFeedback();
+    fetchReflection();
+  }, []);
+
+  async function fetchTasks() {
+    try {
+      setLoadingTasks(true);
+      const res = await get('/tasks?date=today');
+      setTasks(res.data || []);
+    } catch (err) {
+      console.warn('Could not fetch tasks:', err.message);
+      setTasks([]);
+    } finally {
+      setLoadingTasks(false);
+    }
   }
 
-  function addPlanItem() {
+  async function fetchPlan() {
+    try {
+      setLoadingPlan(true);
+      const res = await get('/tasks?date=tomorrow');
+      setPlan(res.data || []);
+    } catch (err) {
+      console.warn('Could not fetch plan:', err.message);
+      setPlan([]);
+    } finally {
+      setLoadingPlan(false);
+    }
+  }
+
+  async function fetchMentorFeedback() {
+    try {
+      setLoadingMentor(true);
+      const res = await get('/mentor/feedback');
+      setMentorMsg(res.data || {});
+    } catch (err) {
+      console.warn('Could not fetch mentor feedback:', err.message);
+    } finally {
+      setLoadingMentor(false);
+    }
+  }
+
+  async function fetchReflection() {
+    try {
+      const res = await get('/reflections?date=today');
+      if (res.data) {
+        setReflection({
+          wentWell: res.data.wentWell || '',
+          distracted: res.data.distracted || '',
+          improve: res.data.improve || '',
+        });
+      }
+    } catch (err) {
+      console.warn('Could not fetch reflection:', err.message);
+    }
+  }
+
+  // ── Task actions ──────────────────────────────────────────
+  async function toggleTask(id) {
+    // Optimistic update — flip locally first for instant UI response
+    const current = tasks.find(t => t._id === id);
+    if (!current) return;
+    setTasks(prev => prev.map(t => t._id === id ? { ...t, completed: !t.completed } : t));
+
+    try {
+      await patch(`/tasks/${id}`, { completed: !current.completed });
+    } catch (err) {
+      // Revert on failure
+      console.error('Toggle task failed:', err.message);
+      setTasks(prev => prev.map(t => t._id === id ? { ...t, completed: current.completed } : t));
+    }
+  }
+
+  // ── Plan actions ──────────────────────────────────────────
+  const [newTask, setNewTask] = useState({ subject: '', task: '', estimatedHours: '', priority: 'medium' });
+  const [showForm, setShowForm] = useState(false);
+
+  async function addPlanItem() {
     if (!newTask.subject || !newTask.task) return;
-    // TODO: Create task — POST /api/tasks
-    const item = { ...newTask, id: Date.now(), estimatedHours: parseFloat(newTask.estimatedHours) || 1 };
-    setPlan(prev => [...prev, item]);
-    setNewTask({ subject: '', task: '', estimatedHours: '', priority: 'medium' });
-    setShowForm(false);
+    try {
+      const res = await post('/tasks', {
+        subject: newTask.subject,
+        task: newTask.task,
+        estimatedHours: parseFloat(newTask.estimatedHours) || 1,
+        priority: newTask.priority,
+        isForTomorrow: true,
+      });
+      setPlan(prev => [...prev, res.data]);
+      setNewTask({ subject: '', task: '', estimatedHours: '', priority: 'medium' });
+      setShowForm(false);
+    } catch (err) {
+      console.error('Add plan item failed:', err.message);
+    }
   }
 
-  function deletePlanItem(id) {
-    // TODO: Delete task — DELETE /api/tasks/:id
-    setPlan(prev => prev.filter(p => p.id !== id));
+  async function deletePlanItem(id) {
+    // Optimistic remove
+    setPlan(prev => prev.filter(p => p._id !== id));
+    try {
+      await del(`/tasks/${id}`);
+    } catch (err) {
+      console.error('Delete plan item failed:', err.message);
+      fetchPlan(); // re-fetch to restore correct state
+    }
   }
 
-  function saveReflection() {
-    // TODO: Save reflection — POST /api/reflections
-    alert('Reflection saved (mock). TODO: Connect to backend.');
+  // ── Reflection ────────────────────────────────────────────
+  async function saveReflection() {
+    setSavingReflection(true);
+    try {
+      await post('/reflections', reflection);
+      setReflection({ wentWell: '', distracted: '', improve: '' }); // clear fields after save
+      setReflectionSaved(true);
+      setTimeout(() => setReflectionSaved(false), 3000);
+    } catch (err) {
+      console.error('Save reflection failed:', err.message);
+    } finally {
+      setSavingReflection(false);
+    }
   }
 
-  function submitMentorFeedback() {
-    // TODO: Submit mentor feedback — POST /api/mentor/feedback
-    alert('Mentor feedback submitted (mock). TODO: Connect to backend.');
-    setMentorInput('');
-  }
-
-  function unlockMentor() {
-    if (mentorCode === MENTOR_CODE) {
+  // ── Mentor mode ───────────────────────────────────────────
+  async function unlockMentor() {
+    setUnlockError('');
+    try {
+      await post('/mentor/verify', { mentorCode });
       setMentorUnlocked(true);
-      setMentorMode(true);
-    } else {
-      alert('Incorrect code.');
+    } catch (err) {
+      if (err.message.includes('403') || err.message.toLowerCase().includes('incorrect')) {
+        setUnlockError('Incorrect code. Please try again.');
+      } else {
+        setUnlockError('Could not verify. Check your connection.');
+      }
+    }
+  }
+
+  async function submitMentorFeedback() {
+    if (!mentorInput.trim()) return;
+    setSubmittingFeedback(true);
+    try {
+      const res = await post('/mentor/feedback', {
+        message: mentorInput,
+        mentorName: 'Ustadh Ibrahim',
+        mentorCode,
+      });
+      setMentorMsg(res.data);
+      setMentorInput('');
+      setFeedbackSaved(true);
+      setTimeout(() => setFeedbackSaved(false), 3000);
+    } catch (err) {
+      if (err.message.includes('403') || err.message.toLowerCase().includes('incorrect')) {
+        setUnlockError('Incorrect mentor code.');
+        setMentorUnlocked(false);
+      } else {
+        console.error('Submit feedback failed:', err.message);
+      }
+    } finally {
+      setSubmittingFeedback(false);
     }
   }
 
@@ -174,36 +323,45 @@ export default function Study() {
         <DailyReminderCard verse={quranVerses[dailyVerseIndex]} />
 
         {/* ── SECTION 1: Today's Tasks ── */}
-        {/* TODO: GET today's tasks from backend */}
-        <Section title="Today's Tasks" subtitle={`${completedCount} of ${tasks.length} completed`}>
+        <Section
+          title="Today's Tasks"
+          subtitle={loadingTasks ? 'Loading...' : `${completedCount} of ${tasks.length} completed`}
+        >
           <div className="mt-3">
-            {tasks.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-4">No tasks for today.</p>
+            {loadingTasks ? (
+              <LoadingSpinner message="Loading tasks..." />
+            ) : tasks.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-slate-500">No tasks for today yet.</p>
+                <p className="text-xs text-slate-600 mt-1">Add tasks from tomorrow's plan or ask your mentor.</p>
+              </div>
             ) : (
               tasks.map(task => (
-                <TaskItem key={task.id} task={task} onToggle={toggleTask} />
+                <TaskItem key={task._id} task={task} onToggle={toggleTask} />
               ))
             )}
           </div>
+
           {/* Progress bar */}
-          <div className="mt-4">
-            <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-              <span>Progress</span>
-              <span>{Math.round((completedCount / tasks.length) * 100)}%</span>
+          {!loadingTasks && tasks.length > 0 && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                <span>Progress</span>
+                <span>{Math.round((completedCount / tasks.length) * 100)}%</span>
+              </div>
+              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-emerald-500 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(completedCount / tasks.length) * 100}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                />
+              </div>
             </div>
-            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-emerald-500 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${(completedCount / tasks.length) * 100}%` }}
-                transition={{ duration: 0.8, ease: 'easeOut' }}
-              />
-            </div>
-          </div>
+          )}
         </Section>
 
         {/* ── SECTION 2: End of Day Reflection ── */}
-        {/* TODO: Save reflection — POST /api/reflections */}
         <Section title="End of Day Reflection" subtitle="Take a moment to reflect">
           <div className="space-y-4 mt-3">
             {[
@@ -222,26 +380,33 @@ export default function Study() {
                 />
               </div>
             ))}
+
+            <AnimatePresence>
+              {reflectionSaved && <SuccessToast message="Reflection saved — Alhamdulillah!" />}
+            </AnimatePresence>
+
             <button
               onClick={saveReflection}
-              className="w-full py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/30 text-emerald-400 text-sm font-medium transition-colors"
+              disabled={savingReflection}
+              className="w-full py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/30 text-emerald-400 text-sm font-medium transition-colors disabled:opacity-50"
             >
-              Save Reflection
+              {savingReflection ? 'Saving...' : 'Save Reflection'}
             </button>
           </div>
         </Section>
 
         {/* ── SECTION 3: Tomorrow's Plan ── */}
-        {/* TODO: Create task — POST /api/tasks */}
-        {/* TODO: Update task — PUT /api/tasks/:id */}
-        {/* TODO: Delete task — DELETE /api/tasks/:id */}
         <Section title="Tomorrow's Plan" subtitle="Plan your next day with intention">
           <div className="space-y-3 mt-3">
-            <AnimatePresence>
-              {plan.map(item => (
-                <PlanCard key={item.id} item={item} onDelete={deletePlanItem} />
-              ))}
-            </AnimatePresence>
+            {loadingPlan ? (
+              <LoadingSpinner message="Loading plan..." />
+            ) : (
+              <AnimatePresence>
+                {plan.map(item => (
+                  <PlanCard key={item._id} item={item} onDelete={deletePlanItem} />
+                ))}
+              </AnimatePresence>
+            )}
 
             {/* Add task form */}
             <AnimatePresence>
@@ -250,7 +415,7 @@ export default function Study() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-4 space-y-3"
+                  className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-4 space-y-3 overflow-hidden"
                 >
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -325,40 +490,49 @@ export default function Study() {
         </Section>
 
         {/* ── SECTION 4: Mentor Feedback ── */}
-        {/* TODO: Fetch mentor feedback — GET /api/mentor/feedback */}
-        {/* TODO: Submit mentor feedback — POST /api/mentor/feedback */}
-        {/* TODO: Authentication — POST /api/auth/login */}
-        {/* TODO: Role management — GET /api/auth/me */}
         <Section title="Mentor Feedback" subtitle="Guidance from your mentor">
           <div className="mt-3 space-y-4">
-            {/* Mentor message */}
-            <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-full bg-emerald-600/20 border border-emerald-600/30 flex items-center justify-center">
-                  <User size={12} className="text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-300">{mentorFeedback.mentorName}</p>
-                  <p className="text-xs text-slate-600">{mentorFeedback.timestamp}</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed italic font-display">
-                "{mentorFeedback.message}"
-              </p>
-            </div>
 
-            {/* Mentor mode toggle */}
+            {/* Latest mentor message */}
+            {loadingMentor ? (
+              <LoadingSpinner message="Loading feedback..." />
+            ) : (
+              <div className="rounded-xl bg-slate-800/40 border border-slate-700/30 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-full bg-emerald-600/20 border border-emerald-600/30 flex items-center justify-center">
+                    <User size={12} className="text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-300">
+                      {mentorMsg.mentorName || 'Ustadh Ibrahim'}
+                    </p>
+                    {mentorMsg.createdAt && (
+                      <p className="text-xs text-slate-600">
+                        {new Date(mentorMsg.createdAt).toLocaleDateString('en-US', {
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed italic font-display">
+                  "{mentorMsg.message}"
+                </p>
+              </div>
+            )}
+
+            {/* Mentor mode unlock */}
             {!mentorUnlocked ? (
               <div className="rounded-xl border border-slate-700/30 bg-slate-800/20 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Lock size={14} className="text-slate-500" />
-                  <p className="text-xs text-slate-500">Mentor mode — enter code to unlock</p>
+                  <p className="text-xs text-slate-500">Mentor mode — enter code to leave feedback</p>
                 </div>
                 <div className="flex gap-2">
                   <input
                     type="password"
                     value={mentorCode}
-                    onChange={e => setMentorCode(e.target.value)}
+                    onChange={e => { setMentorCode(e.target.value); setUnlockError(''); }}
                     placeholder="Enter mentor code"
                     className="flex-1 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-700/60 transition-colors"
                     onKeyDown={e => e.key === 'Enter' && unlockMentor()}
@@ -370,6 +544,9 @@ export default function Study() {
                     Unlock
                   </button>
                 </div>
+                {unlockError && (
+                  <p className="text-xs text-red-400 mt-2">{unlockError}</p>
+                )}
               </div>
             ) : (
               <motion.div
@@ -388,12 +565,18 @@ export default function Study() {
                   rows={3}
                   className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-700/60 transition-colors resize-none"
                 />
+
+                <AnimatePresence>
+                  {feedbackSaved && <SuccessToast message="Feedback submitted successfully!" />}
+                </AnimatePresence>
+
                 <button
                   onClick={submitMentorFeedback}
-                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  disabled={submittingFeedback || !mentorInput.trim()}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <MessageSquare size={14} />
-                  Submit Feedback
+                  {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
                 </button>
               </motion.div>
             )}
