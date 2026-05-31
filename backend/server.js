@@ -13,13 +13,21 @@ const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────
 
-// Allow requests from the React frontend (Vite dev server)
+// Allow requests from the React frontend
+// In production, set FRONTEND_URL env var to your deployed frontend origin
+const allowedOrigins = [
+  'http://localhost:5173',  // Vite default
+  'http://localhost:5174',  // Vite fallback port
+  'http://localhost:3000',  // CRA fallback
+  'http://localhost:4173',  // Vite preview
+];
+
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',  // Vite default
-    'http://localhost:5174',  // Vite fallback port
-    'http://localhost:3000',  // CRA fallback
-  ],
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
   credentials: true,
 }));
