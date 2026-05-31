@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckCircle2, Circle, Plus, Trash2, BookOpen,
+  CheckCircle2, Circle, Plus, Trash2,
   MessageSquare, ChevronDown, ChevronUp, User, Lock, CheckCheck
 } from 'lucide-react';
 import PageLayout from '../components/PageLayout';

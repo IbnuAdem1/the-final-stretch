@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Moon, BookMarked, Flame, Clock, Calendar, ChevronRight } from 'lucide-react';
@@ -21,12 +21,10 @@ import {
 
 // Countdown timer component — accepts examDate as prop so it can use live backend data
 function CountdownTimer({ examDate }) {
-  const [parts, setParts] = useState(getCountdownParts(examDate));
+  const [parts, setParts] = useState(() => getCountdownParts(examDate));
 
   useEffect(() => {
-    // Recalculate immediately when examDate changes (e.g. after backend loads)
-    setParts(getCountdownParts(examDate));
-
+    // Update immediately when examDate changes, then tick every second
     const interval = setInterval(() => {
       setParts(getCountdownParts(examDate));
     }, 1000);
@@ -130,7 +128,6 @@ function MainCard({ icon: Icon, title, percentage, streak, streakLabel, actionLa
 function SwipeableQuoteCard({ verse, hadith }) {
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
-  const dragStartX = useRef(0);
 
   const slides = [
     { type: 'Quran', label: 'Quran', pillStyle: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', content: verse },
@@ -269,11 +266,7 @@ export default function Dashboard() {
   const [loading,       setLoading]       = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  async function fetchDashboard() {
+  const fetchDashboard = useCallback(async () => {
     try {
       setLoading(true);
       const res = await get('/dashboard');
@@ -294,8 +287,10 @@ export default function Dashboard() {
       setLoading(false);
       setSettingsLoading(false);
     }
-  }
+  }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
   const daysRemaining = getDaysRemaining(examDate);
 
   return (

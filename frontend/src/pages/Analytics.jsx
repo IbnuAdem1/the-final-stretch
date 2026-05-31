@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart2, BookOpen, BookMarked, Moon, TrendingUp } from 'lucide-react';
+import { BookOpen, BookMarked, Moon, TrendingUp } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import ProgressRing from '../components/ProgressRing';
 import WeeklyBar from '../components/WeeklyBar';
@@ -139,11 +139,7 @@ export default function Analytics() {
   const [monthlyStudy,      setMonthlyStudy]      = useState([]);
   const [loading,           setLoading]           = useState(true);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, []);
-
-  async function fetchAnalytics() {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       const res = await get('/analytics');
@@ -162,7 +158,10 @@ export default function Analytics() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchAnalytics(); }, [fetchAnalytics]);
 
   // Derive max values from data for bar scaling
   const maxStudyHours = Math.max(...weeklyStudy.map(d => d.hours), 1);

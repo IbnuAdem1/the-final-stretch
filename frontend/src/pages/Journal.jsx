@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   ScrollText, BookOpen, BookMarked, Moon, ChevronDown, ChevronUp,
-  CheckCircle2, Circle, Star, User, BarChart2, Lock, CheckCheck,
+  CheckCircle2, Circle, Star, User, BarChart2, CheckCheck,
   MessageSquare, Pencil, Trash2, X, Check
 } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { get, post, patch, del, delWithBody } from '../utils/api';
+import { get, post, patch, delWithBody } from '../utils/api';
 
 // ─── Helpers ──────────────────────────────────────────────────
 function getSubjectColor(subject) {
@@ -493,7 +493,7 @@ function MentorFeedbackForm({ onUnlocked, onSubmitted }) {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       onSubmitted?.(); // refresh journal
-    } catch (err) {
+    } catch {
       setError('Failed to submit. Check your code.');
     } finally {
       setSaving(false);
@@ -577,11 +577,7 @@ export default function Journal() {
   const [days,        setDays]        = useState(30);
   const [mentorCode,  setMentorCode]  = useState(''); // set when mentor unlocks
 
-  useEffect(() => {
-    fetchJournal();
-  }, [days]);
-
-  async function fetchJournal() {
+  const fetchJournal = useCallback(async () => {
     try {
       setLoading(true);
       const res = await get(`/journal?days=${days}`);
@@ -591,7 +587,10 @@ export default function Journal() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [days]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchJournal(); }, [fetchJournal]);
 
   return (
     <PageLayout title="Journal" subtitle="Your complete record — every day, every effort">

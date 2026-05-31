@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, Circle, Flame, CheckCheck } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
@@ -137,11 +137,7 @@ export default function Salah() {
   const jamaahCount   = prayers.filter(p => p.jamaah).length;
 
   // ── Fetch on mount ────────────────────────────────────────
-  useEffect(() => {
-    fetchTodaySalah();
-  }, []);
-
-  async function fetchTodaySalah() {
+  const fetchTodaySalah = useCallback(async () => {
     try {
       setLoading(true);
       const res = await get('/salah?date=today');
@@ -154,7 +150,10 @@ export default function Salah() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchTodaySalah(); }, [fetchTodaySalah]);
 
   // ── Helper: save the full prayers array to backend ────────
   async function persistPrayers(updatedPrayers) {

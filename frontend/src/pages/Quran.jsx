@@ -146,8 +146,8 @@ export default function Quran() {
   const [loadingPlan, setLoadingPlan]         = useState(true);
 
   const dailyVerseIndex = getDailyIndex(quranVerses);
-  const percent       = targetPages ? getPercentage(pagesRead, targetPages) : 0;
-  const goalCompleted = targetPages ? pagesRead >= targetPages : false;
+  // Only calculate percent when a reading plan exists (surah is set)
+  const percent       = (dailySurah && targetPages) ? getPercentage(pagesRead, targetPages) : 0;
   const planDoneCount = plan.filter(p => p.done).length;
 
   // ── Fetch on mount ────────────────────────────────────────
@@ -184,20 +184,6 @@ export default function Quran() {
       console.warn('Could not fetch quran plan:', err.message);
     } finally {
       setLoadingPlan(false);
-    }
-  }
-
-  // ── Mark a page as read ───────────────────────────────────
-  async function markPage() {
-    if (pagesRead >= targetPages) return;
-    const next = pagesRead + 1;
-    setPagesRead(next);
-    try {
-      const res = await post('/quran/progress', { pagesRead: next });
-      if (res?.data) setPagesRead(res.data.pagesRead);
-    } catch (err) {
-      console.error('Mark page failed:', err.message);
-      setPagesRead(pagesRead);
     }
   }
 
@@ -337,7 +323,7 @@ export default function Quran() {
                 </div>
                 <h3 className="text-lg font-bold text-slate-100 mb-1">Today's Quran Reading</h3>
 
-                {/* Dynamic daily plan — from tomorrow's plan that became today */}
+                {/* Dynamic daily plan — populated from yesterday's reading plan */}
                 {dailySurah ? (
                   <p className="text-sm text-emerald-300 font-medium">
                     {dailySurah}
@@ -346,12 +332,8 @@ export default function Quran() {
                     )}
                   </p>
                 ) : (
-                  <p className="text-sm text-slate-400">
-                    Your daily portion:{' '}
-                    {targetPages !== null
-                      ? <span className="text-emerald-400 font-semibold">{targetPages} pages</span>
-                      : <span className="text-slate-600 animate-pulse">loading...</span>
-                    }
+                  <p className="text-sm text-slate-500 italic">
+                    No reading planned yet — add tomorrow's plan below ↓
                   </p>
                 )}
               </div>

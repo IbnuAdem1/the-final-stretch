@@ -30,16 +30,33 @@ function GeometricShape({ className, delay = 0 }) {
   );
 }
 
+// Stable particle data — generated once outside the component to avoid
+// re-generating on every render (fixes react-hooks/purity warning)
+const PARTICLE_DATA = Array.from({ length: 30 }, (_, i) => {
+  // Use a deterministic pseudo-random sequence seeded by index
+  const seed = (i * 9301 + 49297) % 233280;
+  const rng = seed / 233280;
+  const seed2 = ((i + 1) * 9301 + 49297) % 233280;
+  const rng2 = seed2 / 233280;
+  const seed3 = ((i + 2) * 9301 + 49297) % 233280;
+  const rng3 = seed3 / 233280;
+  const seed4 = ((i + 3) * 9301 + 49297) % 233280;
+  const rng4 = seed4 / 233280;
+  const seed5 = ((i + 4) * 9301 + 49297) % 233280;
+  const rng5 = seed5 / 233280;
+  return {
+    id: i,
+    x: rng * 100,
+    y: rng2 * 100,
+    size: rng3 * 2 + 1,
+    delay: rng4 * 4,
+    duration: rng5 * 6 + 4,
+  };
+});
+
 // Particle dots
 function Particles() {
-  const dots = Array.from({ length: 30 }, (_, i) => ({
-    id: i,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: Math.random() * 2 + 1,
-    delay: Math.random() * 4,
-    duration: Math.random() * 6 + 4,
-  }));
+  const dots = PARTICLE_DATA;
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
