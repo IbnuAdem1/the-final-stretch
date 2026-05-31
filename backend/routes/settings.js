@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
       // First time the app runs — create the default settings
       settings = await Settings.create({
         _id: 'app_settings',
-        examDate: new Date('2025-11-15T08:00:00.000Z'),
+        examDate: new Date('2026-07-01T08:00:00.000Z'),
         dailyQuranTarget: 20,
         mentorCode: '786',
       });
@@ -26,6 +26,14 @@ router.get('/', async (req, res) => {
         { new: true }
       );
       console.log('Settings migrated: dailyQuranTarget updated to 20');
+    } else if (settings.examDate <= new Date('2025-12-31')) {
+      // Migrate old exam date to the correct July 1 2026 date
+      settings = await Settings.findByIdAndUpdate(
+        'app_settings',
+        { $set: { examDate: new Date('2026-07-01T08:00:00.000Z') } },
+        { new: true }
+      );
+      console.log('Settings migrated: examDate updated to 2026-07-01');
     }
 
     res.json({ success: true, data: settings });

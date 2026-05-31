@@ -3,7 +3,7 @@
 // TODO: Replace all mock data with real API calls to backend
 // ============================================================
 
-export const EXAM_DATE = new Date('2025-11-15T08:00:00'); // TODO: Connect exam date from backend
+export const EXAM_DATE = new Date('2026-07-01T08:00:00'); // TODO: Connect exam date from backend
 
 // ─── Quran Verses ────────────────────────────────────────────
 export const quranVerses = [

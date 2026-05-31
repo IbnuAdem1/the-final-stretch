@@ -8,7 +8,7 @@ const settingsSchema = new mongoose.Schema(
     // The national exam date Ansar is preparing for
     examDate: {
       type: Date,
-      default: new Date('2025-11-15T08:00:00.000Z'),
+      default: new Date('2026-07-01T08:00:00.000Z'),
     },
 
     // How many Quran pages Ansar aims to read per day
