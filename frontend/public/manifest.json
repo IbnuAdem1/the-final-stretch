@@ -1,0 +1,49 @@
+{
+  "name": "The Final Push",
+  "short_name": "Final Push",
+  "description": "30-day exam prep tracker — Study, Quran, and Salah",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "categories": ["productivity", "education"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "View today's overview"
+    },
+    {
+      "name": "Study",
+      "url": "/study",
+      "description": "Track study tasks"
+    },
+    {
+      "name": "Quran",
+      "url": "/quran",
+      "description": "Track Quran reading"
+    },
+    {
+      "name": "Salah",
+      "url": "/salah",
+      "description": "Track daily prayers"
+    }
+  ]
+}
