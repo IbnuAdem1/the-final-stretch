@@ -114,6 +114,9 @@ function PlanCard({ item, onDelete }) {
         </div>
         <p className="text-sm text-slate-200">{item.task}</p>
         <p className="text-xs text-slate-500 mt-1">{item.estimatedHours}h estimated</p>
+        {item.place && (
+          <p className="text-xs text-slate-600 mt-0.5">📍 {item.place}</p>
+        )}
       </div>
       <button
         onClick={() => onDelete(item._id)}
@@ -228,7 +231,7 @@ export default function Study() {
   }
 
   // ── Plan actions ──────────────────────────────────────────
-  const [newTask, setNewTask] = useState({ subject: '', task: '', estimatedHours: '', priority: 'medium' });
+  const [newTask, setNewTask] = useState({ subject: '', task: '', estimatedHours: '', priority: 'medium', place: '' });
   const [showForm, setShowForm] = useState(false);
 
   async function addPlanItem() {
@@ -239,10 +242,11 @@ export default function Study() {
         task: newTask.task,
         estimatedHours: parseFloat(newTask.estimatedHours) || 1,
         priority: newTask.priority,
+        place: newTask.place,
         isForTomorrow: true,
       });
       setPlan(prev => [...prev, res.data]);
-      setNewTask({ subject: '', task: '', estimatedHours: '', priority: 'medium' });
+      setNewTask({ subject: '', task: '', estimatedHours: '', priority: 'medium', place: '' });
       setShowForm(false);
     } catch (err) {
       console.error('Add plan item failed:', err.message);
@@ -265,7 +269,7 @@ export default function Study() {
     setSavingReflection(true);
     try {
       await post('/reflections', reflection);
-      setReflection({ wentWell: '', distracted: '', improve: '' }); // clear fields after save
+      // Keep the fields populated — the user's text is their saved reflection
       setReflectionSaved(true);
       setTimeout(() => setReflectionSaved(false), 3000);
     } catch (err) {
@@ -458,6 +462,15 @@ export default function Study() {
                       <option value="medium">Medium</option>
                       <option value="low">Low</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Study Location</label>
+                    <input
+                      value={newTask.place}
+                      onChange={e => setNewTask(p => ({ ...p, place: e.target.value }))}
+                      placeholder="e.g. Library, Home, Masjid..."
+                      className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-700/60 transition-colors"
+                    />
                   </div>
                   <div className="flex gap-2">
                     <button
