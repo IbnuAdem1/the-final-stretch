@@ -1,13 +1,13 @@
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, BookOpen, Moon, BookMarked, BarChart2, ChevronLeft } from 'lucide-react';
+import { Home, BookOpen, Moon, BookMarked, ScrollText, ChevronLeft } from 'lucide-react';
 
 const navItems = [
-  { path: '/dashboard', icon: Home, label: 'Home' },
-  { path: '/study', icon: BookOpen, label: 'Study' },
-  { path: '/quran', icon: BookMarked, label: 'Quran' },
-  { path: '/salah', icon: Moon, label: 'Salah' },
-  { path: '/analytics', icon: BarChart2, label: 'Stats' },
+  { path: '/dashboard', icon: Home,       label: 'Home'    },
+  { path: '/study',     icon: BookOpen,   label: 'Study'   },
+  { path: '/quran',     icon: BookMarked, label: 'Quran'   },
+  { path: '/salah',     icon: Moon,       label: 'Salah'   },
+  { path: '/journal',   icon: ScrollText, label: 'Journal' },
 ];
 
 export default function PageLayout({ children, title, subtitle, showBack = false }) {
