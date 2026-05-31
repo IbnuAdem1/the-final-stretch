@@ -259,7 +259,6 @@ export default function Dashboard() {
   const [studyStreak,   setStudyStreak]   = useState(0);
   const [quranStreak,   setQuranStreak]   = useState(0);
   const [salahStreak,   setSalahStreak]   = useState(0);
-  const [overallStreak, setOverallStreak] = useState(0);
   const [studyPercent,  setStudyPercent]  = useState(0);
   const [quranPercent,  setQuranPercent]  = useState(0);
   const [salahPercent,  setSalahPercent]  = useState(0);
@@ -276,7 +275,6 @@ export default function Dashboard() {
         setStudyStreak(d.studyStreak   ?? 0);
         setQuranStreak(d.quranStreak   ?? 0);
         setSalahStreak(d.salahStreak   ?? 0);
-        setOverallStreak(d.overallStreak ?? 0);
         setStudyPercent(d.todayStudy?.percent ?? 0);
         setQuranPercent(d.todayQuran?.percent ?? 0);
         setSalahPercent(d.todaySalah?.percent ?? 0);
@@ -323,33 +321,20 @@ export default function Dashboard() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="rounded-2xl border border-emerald-900/40 bg-gradient-to-br from-emerald-950/40 to-slate-900 p-5"
         >
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs text-emerald-600 font-medium uppercase tracking-wider">
-                National Exam Countdown
-              </p>
-              <p className="text-sm text-slate-400 mt-0.5 flex items-center gap-1.5">
-                <Clock size={12} />
-                {settingsLoading ? (
-                  <span className="text-slate-600 animate-pulse">calculating...</span>
-                ) : (
-                  <>
-                    <span className="text-emerald-400 font-semibold">{daysRemaining} days</span> remaining
-                  </>
-                )}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-600">Overall Streak</p>
-              <div className="flex items-center gap-1 justify-end mt-0.5">
-                <Flame size={14} className="text-orange-400" />
-                {loading
-                  ? <span className="w-8 h-5 bg-slate-800 rounded animate-pulse inline-block" />
-                  : <span className="text-lg font-bold text-orange-400">{overallStreak}</span>
-                }
-                <span className="text-xs text-slate-500">days</span>
-              </div>
-            </div>
+          <div className="mb-3">
+            <p className="text-xs text-emerald-600 font-medium uppercase tracking-wider">
+              National Exam Countdown
+            </p>
+            <p className="text-sm text-slate-400 mt-0.5 flex items-center gap-1.5">
+              <Clock size={12} />
+              {settingsLoading ? (
+                <span className="text-slate-600 animate-pulse">calculating...</span>
+              ) : (
+                <>
+                  <span className="text-emerald-400 font-semibold">{daysRemaining} days</span> remaining
+                </>
+              )}
+            </p>
           </div>
           <CountdownTimer examDate={examDate} />
         </motion.div>
