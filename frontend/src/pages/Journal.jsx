@@ -165,20 +165,12 @@ function QuranSection({ quran }) {
         <div className="space-y-1.5">
           <p className="text-xs text-slate-600">Reading plan</p>
           {plan.map(item => (
-            <div key={item._id} className="flex items-start gap-2">
-              {item.done
-                ? <CheckCircle2 size={13} className="text-emerald-500 mt-0.5 flex-shrink-0" />
-                : <Circle size={13} className="text-slate-600 mt-0.5 flex-shrink-0" />
-              }
-              <div>
-                <p className={`text-sm ${item.done ? 'line-through text-slate-500' : 'text-slate-300'}`}>
-                  {item.surah}
-                </p>
-                <p className="text-xs text-slate-600">
-                  Page {item.fromPage} → {item.toPage}
-                  {item.notes && <span className="ml-2 italic text-slate-500">"{item.notes}"</span>}
-                </p>
-              </div>
+            <div key={item._id}>
+              <p className="text-sm text-slate-300">{item.surah}</p>
+              <p className="text-xs text-slate-600">
+                Page {item.fromPage} → {item.toPage}
+                {item.notes && <span className="ml-2 italic text-slate-500">"{item.notes}"</span>}
+              </p>
             </div>
           ))}
         </div>
