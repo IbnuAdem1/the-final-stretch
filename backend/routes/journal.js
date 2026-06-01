@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
       mentorFeedbacks,
       settings,
     ] = await Promise.all([
-      StudyTask.find({ date: { $gte: startDate, $lte: endDate }, isForTomorrow: false })
+      StudyTask.find({ date: { $gte: startDate, $lte: endDate } })
         .sort({ createdAt: 1 }).lean(),
 
       StudyReflection.find({ date: { $gte: startDate, $lte: endDate } }).lean(),
