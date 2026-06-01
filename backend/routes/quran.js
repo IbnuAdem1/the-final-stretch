@@ -107,29 +107,44 @@ router.get('/stats', async (req, res) => {
 // ─── GET /api/quran/progress?date=today ───────────────────────
 router.get('/progress', async (req, res) => {
   try {
+    const settings = await Settings.findById('app_settings');
+    const targetPages = settings?.dailyQuranTarget || null;
+
     let progress = await QuranProgress.findOne({ date: todayRange() });
 
     if (!progress) {
-      const settings = await Settings.findById('app_settings');
-      const targetPages = settings?.dailyQuranTarget || 20;
+      // Check if a QuranPlan exists for today — if so, bridge it into today's progress
+      const todayPlans = await QuranPlan.find({ date: todayRange() }).sort({ createdAt: 1 });
+      const firstPlan  = todayPlans[0] || null;
 
       progress = await QuranProgress.create({
-        date: startOfDay(new Date()),
-        pagesRead: 0,
-        targetPages,
+        date:             startOfDay(new Date()),
+        pagesRead:        0,
+        targetPages:      targetPages,
         dailyPortionDone: false,
-        surah: '',
-        fromPage: 0,
-        toPage: 0,
+        surah:            firstPlan?.surah    || '',
+        fromPage:         firstPlan?.fromPage || 0,
+        toPage:           firstPlan?.toPage   || 0,
       });
-    } else if (progress.targetPages < 20) {
-      // Migrate old records created with the old default (5)
-      // Always sync targetPages from Settings so it stays up to date
-      const settings = await Settings.findById('app_settings');
-      const targetPages = settings?.dailyQuranTarget || 20;
+    } else {
+      // Sync targetPages from Settings on every fetch
+      // Also bridge plan data if surah is still empty but a plan now exists for today
+      const needsPlanBridge = !progress.surah;
+      const updateData = { targetPages };
+
+      if (needsPlanBridge) {
+        const todayPlans = await QuranPlan.find({ date: todayRange() }).sort({ createdAt: 1 });
+        const firstPlan  = todayPlans[0] || null;
+        if (firstPlan) {
+          updateData.surah    = firstPlan.surah;
+          updateData.fromPage = firstPlan.fromPage;
+          updateData.toPage   = firstPlan.toPage;
+        }
+      }
+
       progress = await QuranProgress.findByIdAndUpdate(
         progress._id,
-        { $set: { targetPages } },
+        { $set: updateData },
         { new: true }
       );
     }
@@ -155,7 +170,7 @@ router.post('/progress', async (req, res) => {
     if (toPage           !== undefined) updateData.toPage           = toPage;
 
     const settings = await Settings.findById('app_settings');
-    const targetPages = settings?.dailyQuranTarget || 5;
+    const targetPages = settings?.dailyQuranTarget || null;
 
     const progress = await QuranProgress.findOneAndUpdate(
       { date: todayRange() },

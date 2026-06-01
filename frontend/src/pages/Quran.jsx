@@ -146,8 +146,8 @@ export default function Quran() {
   const [loadingPlan, setLoadingPlan]         = useState(true);
 
   const dailyVerseIndex = getDailyIndex(quranVerses);
-  // Only calculate percent when a reading plan exists (surah is set)
-  const percent       = (dailySurah && targetPages) ? getPercentage(pagesRead, targetPages) : 0;
+  // Calculate percent based on pagesRead and targetPages directly — no surah guard
+  const percent       = targetPages ? getPercentage(pagesRead, targetPages) : 0;
   const planDoneCount = plan.filter(p => p.done).length;
 
   // ── Fetch on mount ────────────────────────────────────────

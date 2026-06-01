@@ -7,6 +7,7 @@ const QuranProgress    = require('../models/QuranProgress');
 const QuranPlan        = require('../models/QuranPlan');
 const QuranReflection  = require('../models/QuranReflection');
 const SalahRecord      = require('../models/SalahRecord');
+const Settings         = require('../models/Settings');
 
 // ─── Helpers ──────────────────────────────────────────────────
 function startOfDay(date) {
@@ -49,7 +50,7 @@ router.get('/', async (req, res) => {
     const startDate = startOfDay(new Date());
     startDate.setDate(startDate.getDate() - (days - 1));
 
-    // Fetch everything in parallel — 7 queries total
+    // Fetch everything in parallel — 8 queries total
     const [
       tasks,
       reflections,
@@ -58,6 +59,7 @@ router.get('/', async (req, res) => {
       quranReflections,
       salahRecords,
       mentorFeedbacks,
+      settings,
     ] = await Promise.all([
       StudyTask.find({ date: { $gte: startDate, $lte: endDate }, isForTomorrow: false })
         .sort({ createdAt: 1 }).lean(),
@@ -75,7 +77,11 @@ router.get('/', async (req, res) => {
 
       MentorFeedback.find({ createdAt: { $gte: startDate, $lte: endDate }, message: { $ne: '__probe__' } })
         .sort({ createdAt: -1 }).lean(),
+
+      Settings.findById('app_settings').lean(),
     ]);
+
+    const defaultQuranTarget = settings?.dailyQuranTarget || null;
 
     // Group everything by local date key
     function groupByDay(items, dateField = 'date') {
@@ -146,7 +152,7 @@ router.get('/', async (req, res) => {
           tasksCompleted,
           tasksTotal:    dayTasks.length,
           quranPages:    dayQuran?.pagesRead       || 0,
-          quranTarget:   dayQuran?.targetPages     || 5,
+          quranTarget:   dayQuran?.targetPages     || defaultQuranTarget,
           quranDone:     dayQuran?.dailyPortionDone || false,
           salahCompleted,
           salahJamaah,

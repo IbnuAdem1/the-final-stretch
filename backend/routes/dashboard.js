@@ -141,8 +141,8 @@ router.get('/', async (req, res) => {
 
     // ── Today's Quran ─────────────────────────────────────
     const pagesRead    = todayQuranDoc?.pagesRead   || 0;
-    const targetPages  = todayQuranDoc?.targetPages || settings?.dailyQuranTarget || 5;
-    const quranPercent = Math.round((pagesRead / targetPages) * 100);
+    const targetPages  = todayQuranDoc?.targetPages || settings?.dailyQuranTarget || null;
+    const quranPercent = targetPages ? Math.round((pagesRead / targetPages) * 100) : 0;
 
     // ── Today's Salah ─────────────────────────────────────
     const salahCompleted = todaySalahDoc
