@@ -37,7 +37,9 @@ function SummaryPills({ summary }) {
       color: summary.quranDone
         ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
         : 'text-slate-400 bg-slate-500/10 border-slate-500/20',
-      label: `${summary.quranPages}/${summary.quranTarget} pages`,
+      label: summary.quranDone && summary.quranPages === 0
+        ? 'Quran ✓'
+        : `${summary.quranPages}/${summary.quranTarget} pages`,
     },
     {
       show: summary.salahCompleted > 0,
@@ -144,18 +146,17 @@ function QuranSection({ quran }) {
       {/* Progress */}
       {progress && (
         <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-1.5 text-sm font-medium ${
-            progress.dailyPortionDone ? 'text-emerald-400' : 'text-slate-400'
-          }`}>
-            {progress.dailyPortionDone
-              ? <CheckCircle2 size={15} className="text-emerald-500" />
-              : <Circle size={15} className="text-slate-600" />
-            }
-            {progress.pagesRead}/{progress.targetPages} pages read
-          </div>
-          {progress.dailyPortionDone && (
-            <span className="text-xs text-emerald-600 italic">Alhamdulillah</span>
-          )}
+          {progress.dailyPortionDone ? (
+            <div className="flex items-center gap-1.5 text-sm font-medium text-emerald-400">
+              <CheckCircle2 size={15} className="text-emerald-500" />
+              Alhamdulillah ✓
+            </div>
+          ) : progress.pagesRead > 0 ? (
+            <div className="flex items-center gap-1.5 text-sm font-medium text-slate-400">
+              <Circle size={15} className="text-slate-600" />
+              {progress.pagesRead}/{progress.targetPages} pages read
+            </div>
+          ) : null}
         </div>
       )}
 
