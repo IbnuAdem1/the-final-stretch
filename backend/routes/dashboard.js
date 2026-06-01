@@ -58,7 +58,6 @@ async function calcAllStreaks() {
   const [studyTasks, quranDocs, salahDocs] = await Promise.all([
     StudyTask.find({
       date: { $gte: oldest, $lte: newest },
-      isForTomorrow: false,
       completed: true,
     }).select('date').lean(),
 
@@ -124,7 +123,6 @@ router.get('/', async (req, res) => {
       Settings.findById('app_settings'),
       StudyTask.find({
         date: { $gte: todayStart, $lte: todayEnd },
-        isForTomorrow: false,
       }).lean(),
       QuranProgress.findOne({ date: { $gte: todayStart, $lte: todayEnd } }).lean(),
       SalahRecord.findOne({ date: { $gte: todayStart, $lte: todayEnd } }).lean(),
