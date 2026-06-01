@@ -86,12 +86,17 @@ function StudySection({ study }) {
                 <p className={`text-sm ${task.completed ? 'line-through text-slate-500' : 'text-slate-300'}`}>
                   {task.task}
                 </p>
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
                   <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${getSubjectColor(task.subject)}`}>
                     {task.subject}
                   </span>
                   {task.estimatedHours > 0 && (
                     <span className="text-xs text-slate-600">{task.estimatedHours}h</span>
+                  )}
+                  {task.studyTime && (
+                    <span className="text-xs text-slate-600">
+                      🕐 {(() => { const [h,m]=task.studyTime.split(':').map(Number); return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`; })()}
+                    </span>
                   )}
                 </div>
               </div>

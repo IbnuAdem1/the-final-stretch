@@ -52,6 +52,13 @@ const studyTaskSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Planned study time — stored as "HH:MM" (24h), displayed as 12h AM/PM
+    studyTime: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+
     // true  = this is a plan item for tomorrow
     // false = this is a task for today
     isForTomorrow: {

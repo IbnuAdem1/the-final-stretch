@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckCircle2, Circle, Plus, Trash2,
-  MessageSquare, ChevronDown, ChevronUp, User, Lock, CheckCheck
+  CheckCircle2, Circle, Plus, Trash2, Pencil, X, Check,
+  MessageSquare, ChevronDown, ChevronUp, User, Lock, CheckCheck, Clock
 } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import { DailyReminderCard } from '../components/IslamicCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { getSubjectColor, getPriorityColor, getDailyIndex } from '../utils/helpers';
 import { get, post, patch, del } from '../utils/api';
-// Mock data kept as reference only — no longer used for initial state
-// import { todaysTasks, tomorrowPlan, mentorFeedback, quranVerses } from '../data/mockData';
 import { quranVerses } from '../data/mockData';
+
+// ─── Helper: format "HH:MM" → "h:MM AM/PM" ───────────────────
+function formatTime(time24) {
+  if (!time24) return '';
+  const [h, m] = time24.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12  = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
 
 // ─── Section wrapper ──────────────────────────────────────────
 function Section({ title, subtitle, children, defaultOpen = true }) {
@@ -66,7 +73,9 @@ function SuccessToast({ message }) {
 }
 
 // ─── Task item ────────────────────────────────────────────────
-function TaskItem({ task, onToggle }) {
+function TaskItem({ task, onToggle, onEdit, onDelete }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
     <motion.div
       layout
@@ -82,19 +91,68 @@ function TaskItem({ task, onToggle }) {
         <p className={`text-sm font-medium ${task.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
           {task.task}
         </p>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex flex-wrap items-center gap-2 mt-1">
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectColor(task.subject)}`}>
             {task.subject}
           </span>
-          {task.duration && <span className="text-xs text-slate-600">{task.duration}</span>}
+          {task.estimatedHours > 0 && (
+            <span className="text-xs text-slate-600">{task.estimatedHours}h</span>
+          )}
+          {task.studyTime && (
+            <span className="text-xs text-slate-500 flex items-center gap-1">
+              <Clock size={10} />
+              {formatTime(task.studyTime)}
+            </span>
+          )}
+          {task.place && (
+            <span className="text-xs text-slate-600">📍 {task.place}</span>
+          )}
         </div>
+      </div>
+      {/* Edit / Delete */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {confirmDelete ? (
+          <>
+            <button
+              onClick={() => onDelete(task._id)}
+              className="p-1.5 rounded-lg text-red-400 bg-red-400/10 hover:bg-red-400/20 transition-colors text-xs font-medium px-2"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <X size={13} />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => onEdit(task)}
+              className="p-1.5 rounded-lg text-slate-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+              title="Edit"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
+        )}
       </div>
     </motion.div>
   );
 }
 
 // ─── Tomorrow plan card ───────────────────────────────────────
-function PlanCard({ item, onDelete }) {
+function PlanCard({ item, onEdit, onDelete }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
     <motion.div
       layout
@@ -113,17 +171,55 @@ function PlanCard({ item, onDelete }) {
           </span>
         </div>
         <p className="text-sm text-slate-200">{item.task}</p>
-        <p className="text-xs text-slate-500 mt-1">{item.estimatedHours}h estimated</p>
-        {item.place && (
-          <p className="text-xs text-slate-600 mt-0.5">📍 {item.place}</p>
+        <div className="flex flex-wrap items-center gap-3 mt-1">
+          <span className="text-xs text-slate-500">{item.estimatedHours}h estimated</span>
+          {item.studyTime && (
+            <span className="text-xs text-slate-500 flex items-center gap-1">
+              <Clock size={10} />
+              {formatTime(item.studyTime)}
+            </span>
+          )}
+          {item.place && (
+            <span className="text-xs text-slate-600">📍 {item.place}</span>
+          )}
+        </div>
+      </div>
+      {/* Edit / Delete */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {confirmDelete ? (
+          <>
+            <button
+              onClick={() => onDelete(item._id)}
+              className="rounded-lg text-red-400 bg-red-400/10 hover:bg-red-400/20 transition-colors text-xs font-medium px-2 py-1"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              <X size={13} />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => onEdit(item)}
+              className="p-1.5 rounded-lg text-slate-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+              title="Edit"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
         )}
       </div>
-      <button
-        onClick={() => onDelete(item._id)}
-        className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-colors flex-shrink-0"
-      >
-        <Trash2 size={14} />
-      </button>
     </motion.div>
   );
 }
@@ -216,51 +312,105 @@ export default function Study() {
 
   // ── Task actions ──────────────────────────────────────────
   async function toggleTask(id) {
-    // Optimistic update — flip locally first for instant UI response
     const current = tasks.find(t => t._id === id);
     if (!current) return;
     setTasks(prev => prev.map(t => t._id === id ? { ...t, completed: !t.completed } : t));
-
     try {
       await patch(`/tasks/${id}`, { completed: !current.completed });
     } catch (err) {
-      // Revert on failure
       console.error('Toggle task failed:', err.message);
       setTasks(prev => prev.map(t => t._id === id ? { ...t, completed: current.completed } : t));
     }
   }
 
-  // ── Plan actions ──────────────────────────────────────────
-  const [newTask, setNewTask] = useState({ subject: '', task: '', estimatedHours: '', priority: 'medium', place: '' });
-  const [showForm, setShowForm] = useState(false);
+  async function deleteTask(id) {
+    setTasks(prev => prev.filter(t => t._id !== id));
+    try {
+      await del(`/tasks/${id}`);
+    } catch (err) {
+      console.error('Delete task failed:', err.message);
+      fetchTasks();
+    }
+  }
 
+  // ── Edit state (shared for both today's tasks and tomorrow's plan) ──
+  const EMPTY_FORM = { subject: '', task: '', estimatedHours: '', priority: 'medium', place: '', studyTime: '' };
+  const [newTask,    setNewTask]    = useState(EMPTY_FORM);
+  const [showForm,   setShowForm]   = useState(false);
+  const [editingId,  setEditingId]  = useState(null); // null = add mode, id = edit mode
+  const [editTarget, setEditTarget] = useState(null); // 'today' | 'tomorrow'
+
+  function openEditTask(task, target) {
+    setEditingId(task._id);
+    setEditTarget(target);
+    setNewTask({
+      subject:        task.subject        || '',
+      task:           task.task           || '',
+      estimatedHours: task.estimatedHours || '',
+      priority:       task.priority       || 'medium',
+      place:          task.place          || '',
+      studyTime:      task.studyTime      || '',
+    });
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setEditTarget(null);
+    setNewTask(EMPTY_FORM);
+  }
+
+  // ── Plan actions ──────────────────────────────────────────
   async function addPlanItem() {
     if (!newTask.subject || !newTask.task) return;
     try {
       const res = await post('/tasks', {
-        subject: newTask.subject,
-        task: newTask.task,
+        subject:        newTask.subject,
+        task:           newTask.task,
         estimatedHours: parseFloat(newTask.estimatedHours) || 1,
-        priority: newTask.priority,
-        place: newTask.place,
-        isForTomorrow: true,
+        priority:       newTask.priority,
+        place:          newTask.place,
+        studyTime:      newTask.studyTime,
+        isForTomorrow:  true,
       });
       setPlan(prev => [...prev, res.data]);
-      setNewTask({ subject: '', task: '', estimatedHours: '', priority: 'medium', place: '' });
-      setShowForm(false);
+      closeForm();
     } catch (err) {
       console.error('Add plan item failed:', err.message);
     }
   }
 
+  async function saveEdit() {
+    if (!newTask.subject || !newTask.task || !editingId) return;
+    const updates = {
+      subject:        newTask.subject,
+      task:           newTask.task,
+      estimatedHours: parseFloat(newTask.estimatedHours) || 1,
+      priority:       newTask.priority,
+      place:          newTask.place,
+      studyTime:      newTask.studyTime,
+    };
+    try {
+      const res = await patch(`/tasks/${editingId}`, updates);
+      if (editTarget === 'today') {
+        setTasks(prev => prev.map(t => t._id === editingId ? res.data : t));
+      } else {
+        setPlan(prev => prev.map(p => p._id === editingId ? res.data : p));
+      }
+      closeForm();
+    } catch (err) {
+      console.error('Edit task failed:', err.message);
+    }
+  }
+
   async function deletePlanItem(id) {
-    // Optimistic remove
     setPlan(prev => prev.filter(p => p._id !== id));
     try {
       await del(`/tasks/${id}`);
     } catch (err) {
       console.error('Delete plan item failed:', err.message);
-      fetchPlan(); // re-fetch to restore correct state
+      fetchPlan();
     }
   }
 
@@ -341,7 +491,13 @@ export default function Study() {
               </div>
             ) : (
               tasks.map(task => (
-                <TaskItem key={task._id} task={task} onToggle={toggleTask} />
+                <TaskItem
+                  key={task._id}
+                  task={task}
+                  onToggle={toggleTask}
+                  onEdit={(t) => openEditTask(t, 'today')}
+                  onDelete={deleteTask}
+                />
               ))
             )}
           </div>
@@ -407,12 +563,17 @@ export default function Study() {
             ) : (
               <AnimatePresence>
                 {plan.map(item => (
-                  <PlanCard key={item._id} item={item} onDelete={deletePlanItem} />
+                  <PlanCard
+                    key={item._id}
+                    item={item}
+                    onEdit={(t) => openEditTask(t, 'tomorrow')}
+                    onDelete={deletePlanItem}
+                  />
                 ))}
               </AnimatePresence>
             )}
 
-            {/* Add task form */}
+            {/* Add / Edit task form */}
             <AnimatePresence>
               {showForm && (
                 <motion.div
@@ -421,6 +582,9 @@ export default function Study() {
                   exit={{ opacity: 0, height: 0 }}
                   className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-4 space-y-3 overflow-hidden"
                 >
+                  <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">
+                    {editingId ? 'Edit Task' : 'Add Task for Tomorrow'}
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-slate-500 block mb-1">Subject</label>
@@ -451,17 +615,28 @@ export default function Study() {
                       className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-700/60 transition-colors"
                     />
                   </div>
-                  <div>
-                    <label className="text-xs text-slate-500 block mb-1">Priority</label>
-                    <select
-                      value={newTask.priority}
-                      onChange={e => setNewTask(p => ({ ...p, priority: e.target.value }))}
-                      className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-700/60 transition-colors"
-                    >
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">Priority</label>
+                      <select
+                        value={newTask.priority}
+                        onChange={e => setNewTask(p => ({ ...p, priority: e.target.value }))}
+                        className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-700/60 transition-colors"
+                      >
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 block mb-1">Study Time</label>
+                      <input
+                        type="time"
+                        value={newTask.studyTime}
+                        onChange={e => setNewTask(p => ({ ...p, studyTime: e.target.value }))}
+                        className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-700/60 transition-colors [color-scheme:dark]"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs text-slate-500 block mb-1">Study Location</label>
@@ -474,13 +649,13 @@ export default function Study() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={addPlanItem}
-                      className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors"
+                      onClick={editingId ? saveEdit : addPlanItem}
+                      className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
                     >
-                      Add Task
+                      {editingId ? <><Check size={13} /> Save Changes</> : 'Add Task'}
                     </button>
                     <button
-                      onClick={() => setShowForm(false)}
+                      onClick={closeForm}
                       className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm font-medium transition-colors"
                     >
                       Cancel
@@ -492,7 +667,7 @@ export default function Study() {
 
             {!showForm && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={() => { setEditingId(null); setNewTask(EMPTY_FORM); setShowForm(true); }}
                 className="w-full py-2.5 rounded-xl border border-dashed border-slate-700 hover:border-emerald-700/50 text-slate-500 hover:text-emerald-400 text-sm transition-colors flex items-center justify-center gap-2"
               >
                 <Plus size={14} />
